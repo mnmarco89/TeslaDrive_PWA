@@ -41,7 +41,7 @@ app.add_middleware(
 TESLA_CLIENT_ID = os.getenv("TESLA_CLIENT_ID")
 TESLA_CLIENT_SECRET = os.getenv("TESLA_CLIENT_SECRET")
 TESLA_REDIRECT_URI = os.getenv("TESLA_REDIRECT_URI")
-APP_BASE_URL = os.getenv("APP_BASE_URL", "https://tesladrive.onrender.com")
+TESLA_AUDIENCE = os.getenv("TESLA_AUDIENCE", "https://fleet-api.prd.eu.vn.cloud.tesla.com")
 
 def get_db():
     db = SessionLocal()
@@ -50,8 +50,14 @@ def get_db():
     finally:
         db.close()
 
+def get_current_token(db: Session = Depends(get_db)):
+    token = db.query(UserToken).order_by(UserToken.id.desc()).first()
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return token
+
 # ==============================================================================
-# ROTTA PER SERVIRE LA CHIAVE PUBBLICA TESLA (Senza passare dalla SPA React)
+# ROTTA PER SERVIRE LA CHIAVE PUBBLICA TESLA
 # ==============================================================================
 @app.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")
 def serve_tesla_public_key():
@@ -65,7 +71,7 @@ def serve_tesla_public_key():
     raise HTTPException(status_code=404, detail="Public key file not found")
 
 # ==============================================================================
-# ROTTE APPLICAZIONE ORIGINALI
+# ROTTE AUTENTICAZIONE
 # ==============================================================================
 @app.get("/health")
 def health_check():
@@ -109,10 +115,61 @@ def tesla_callback(code: str, db: Session = Depends(get_db)):
     
     return RedirectResponse(url="/")
 
+@app.post("/auth/logout")
+def logout(db: Session = Depends(get_db)):
+    db.query(UserToken).delete()
+    db.commit()
+    return {"status": "logged_out"}
+
 @app.get("/api/status")
 def api_status(db: Session = Depends(get_db)):
     token = db.query(UserToken).order_by(UserToken.id.desc()).first()
     return {"authenticated": token is not None}
+
+# ==============================================================================
+# ROTTE API TESLA (Veicoli, Dashboard, Impostazioni, Viaggi)
+# ==============================================================================
+@app.get("/api/vehicles")
+def get_vehicles(token: UserToken = Depends(get_current_token)):
+    headers = {"Authorization": f"Bearer {token.access_token}"}
+    response = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles", headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
+
+@app.get("/api/dashboard/{vin}")
+def get_dashboard(vin: str, token: UserToken = Depends(get_current_token)):
+    headers = {"Authorization": f"Bearer {token.access_token}"}
+    response = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/vehicle_data", headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    
+    data = response.json().get("response", {})
+    vehicle_state = data.get("vehicle_state", {})
+    drive_state = data.get("drive_state", {})
+    charge_state = data.get("charge_state", {})
+    
+    return {
+        "battery": charge_state.get("battery_level"),
+        "range_km": charge_state.get("battery_range", 0) * 1.60934 if charge_state.get("battery_range") else None,
+        "odometer_km": vehicle_state.get("odometer", 0) * 1.60934 if vehicle_state.get("odometer") else None,
+        "speed_kmh": drive_state.get("speed", 0) * 1.60934 if drive_state.get("speed") else 0,
+        "shift_state": drive_state.get("shift_state", "P"),
+        "navigation": drive_state.get("active_route_destination"),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+@app.get("/api/settings")
+def get_settings():
+    return {"electricity": 0.25, "diesel": 1.85, "diesel_km_l": 15.0}
+
+@app.post("/api/settings")
+def save_settings(settings: dict):
+    return {"status": "saved", "settings": settings}
+
+@app.get("/api/trips")
+def get_trips():
+    return []
 
 # Servizio dei file statici del frontend React (deve rimanere in fondo)
 if os.path.exists("static"):

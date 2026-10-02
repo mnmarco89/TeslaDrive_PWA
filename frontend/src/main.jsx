@@ -92,7 +92,7 @@ function App() {
       ) : !connected ? (
         <main className="empty">
           <div className="logo">T</div>
-          <h1>La tua Tesla, in una sola schermata.</h1>
+          <h1>La tua Tesla, in una sola schermata caro Shmertol.</h1>
           <p>Collega il tuo account Tesla. L'autorizzazione avviene direttamente sui server Tesla.</p>
           <button className="button" onClick={() => window.location.href = "/auth/tesla/start"}>Accedi con Tesla</button>
           <small>Il client secret non viene mai inviato al telefono.</small>
