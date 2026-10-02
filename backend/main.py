@@ -161,17 +161,19 @@ def get_dashboard(vin: str, token: UserToken = Depends(get_current_token)):
 
 @app.get("/api/settings")
 def get_settings(token: UserToken = Depends(get_current_token)):
-    diesel_price = 1.76  # Valore di fallback predefinito
-    electricity_price = 0.21
+    # Valori di fallback nel caso in cui la Tesla sia offline o non trasmetta il GPS
+    diesel_price = 2.19
+    electricity_price = 0.24
     
     headers = {"Authorization": f"Bearer {token.access_token}"}
     try:
-        # 1. Recupera la posizione della Tesla
+        # 1. Ottiene la lista dei veicoli associati
         res = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles", headers=headers, timeout=5)
         if res.status_code == 200:
             vehicles = res.json().get("response", [])
             if vehicles:
                 vin = vehicles[0].get("vin")
+                # 2. Richiede i dati di telemetria inclusa la posizione GPS
                 data_res = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/vehicle_data", headers=headers, timeout=5)
                 if data_res.status_code == 200:
                     drive_state = data_res.json().get("response", {}).get("drive_state", {})
@@ -179,20 +181,22 @@ def get_settings(token: UserToken = Depends(get_current_token)):
                     lon = drive_state.get("longitude")
                     
                     if lat and lon:
-                        # 2. Interroga l'API pubblica basata sugli Open Data del MIMIT per trovare i distributori vicini
-                        api_url = f"https://prezzi-carburante.onrender.com/api/search?latitude={lat}&longitude={lon}&distance=10&fuel=diesel&results=1"
+                        # 3. Interroga l'API ufficiale italiana open-data dei carburanti basata sulle coordinate GPS attuali
+                        api_url = f"https://prezzi-carburante.onrender.com/api/distributori?latitude={lat}&longitude={lon}&distance=10&fuel=gasolio&results=1"
                         fuel_res = requests.get(api_url, timeout=5)
                         if fuel_res.status_code == 200:
                             stations = fuel_res.json()
-                            if stations and isinstance(stations, list):
-                                diesel_price = float(stations[0].get("prezzo", diesel_price))
+                            if stations and isinstance(stations, list) and len(stations) > 0:
+                                live_price = stations[0].get("prezzo")
+                                if live_price:
+                                    diesel_price = float(live_price)
     except Exception as e:
-        print(f"Errore recupero prezzi dinamici: {e}")
+        print(f"Errore durante l'aggiornamento dinamico dei prezzi GPS: {e}")
 
     return {
         "electricity": electricity_price,
         "diesel": round(diesel_price, 2),
-        "diesel_km_l": 16.0
+        "diesel_km_l": 15.5
     }
 
 @app.post("/api/settings")

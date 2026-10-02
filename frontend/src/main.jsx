@@ -13,7 +13,7 @@ const api = (p, o = {}) => fetch(p, { credentials: 'include', ...o }).then(async
 function App() {
   const [connected, setConnected] = useState(false);
   const [vehicles, setVehicles] = useState([]);
-  const [vin, setVin] = useState(localStorage.getItem('tesladrive_vin') || '');
+  const [vin, setVin] = useState(localStorage.getItem('shmersla_vin') || '');
   const [dash, setDash] = useState(null);
   const [settings, setSettings] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -35,7 +35,7 @@ function App() {
       const chosen = vin || list[0]?.vin;
       if (chosen) {
         setVin(chosen);
-        localStorage.setItem('tesladrive_vin', chosen);
+        localStorage.setItem('shmersla_vin', chosen);
         setDash(await api('/api/dashboard/' + chosen));
       }
       setSettings(await api('/api/settings'));
@@ -70,9 +70,9 @@ function App() {
     <div className="tesla-app">
       <header className="app-header">
         <div className="brand">
-          <div className="brand-logo">T</div>
+          <img src="/logo.png" alt="Shmersla Logo" className="brand-logo-img" />
           <div>
-            <h1>TeslaDrive</h1>
+            <h1>Shmersla</h1>
             <span className="subtitle">Fleet Telemetry & Real-Time Data</span>
           </div>
         </div>
@@ -84,12 +84,12 @@ function App() {
       {loading ? (
         <div className="loader-container">
           <div className="tesla-spinner"></div>
-          <p>Connessione ai server Tesla in corso...</p>
+          <p>Connessione ai server in corso...</p>
         </div>
       ) : !connected ? (
         <div className="login-hero">
           <div className="hero-badge">SECURE OAUTH 2.0</div>
-          <h2>La tua Tesla, <br/>senza compromessi.</h2>
+          <h2>La tua Shmersla, <br/>senza compromessi.</h2>
           <p>Monitoraggio in tempo reale, telemetria avanzata e gestione energetica direttamente integrata con la tua vettura.</p>
           <button className="btn-tesla-login" onClick={() => window.location.href = "/auth/tesla/start"}>
             <span>Accedi con Tesla ID</span>
@@ -98,7 +98,6 @@ function App() {
         </div>
       ) : (
         <main className="dashboard-grid">
-          {/* Box Principale Veicolo */}
           <section className="car-hero-card">
             <div className="car-info">
               <span className="label-top">VEICOLO ATTIVO</span>
@@ -107,7 +106,7 @@ function App() {
                 <select value={vin} onChange={async e => {
                   const x = e.target.value;
                   setVin(x);
-                  localStorage.setItem('tesladrive_vin', x);
+                  localStorage.setItem('shmersla_vin', x);
                   setDash(await api('/api/dashboard/' + x));
                 }}>
                   {vehicles.map(x => <option key={x.vin} value={x.vin}>{x.display_name || x.vin}</option>)}
@@ -123,7 +122,6 @@ function App() {
             </div>
           </section>
 
-          {/* Metric Cards */}
           <div className="metrics-row">
             <MetricCard title="Autonomia Stimata" value={dash?.range_km != null ? Math.round(dash.range_km) + ' km' : '—'} icon="🔋" />
             <MetricCard title="Odometro Totale" value={dash?.odometer_km != null ? Math.round(dash.odometer_km).toLocaleString() + ' km' : '—'} icon="🛣️" />
@@ -131,7 +129,6 @@ function App() {
             <MetricCard title="Stato Marcia" value={dash?.shift_state || 'P'} icon="⚙️" highlight={true} />
           </div>
 
-          {/* Pannelli Inferiori */}
           <div className="panels-split">
             <div className="glass-panel">
               <div className="panel-header">
@@ -151,7 +148,7 @@ function App() {
             <div className="glass-panel">
               <div className="panel-header">
                 <h3>⚡ Costi ed Energia</h3>
-                <span className="auto-loc-badge">📍 Prezzi Nazionali</span>
+                <span className="auto-loc-badge">📍 GPS Dinamico</span>
               </div>
               {settings && (
                 <div className="settings-form">
@@ -176,7 +173,7 @@ function App() {
       )}
 
       <footer className="app-footer">
-        <span>TeslaDrive PWA • Sincronizzazione Cloud</span>
+        <span>Shmersla PWA • Sincronizzazione Cloud</span>
         <span>Aggiornato: {dash?.updated_at ? new Date(dash.updated_at).toLocaleTimeString('it-IT') : '—'}</span>
       </footer>
     </div>
