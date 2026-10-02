@@ -120,15 +120,18 @@ def serve_tesla_public_key():
 def health_check():
     return {"status": "ok"}
 
+
 @app.get("/auth/tesla/start")
 def tesla_start_login():
     state = secrets.token_urlsafe(16)
+    # Aggiunti tutti gli scope corrispondenti ai permessi attivati sul portale
+    scopes = "openid offline_access user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds"
     auth_url = (
         f"https://auth.tesla.com/oauth2/v3/authorize?"
         f"response_type=code&"
         f"client_id={TESLA_CLIENT_ID}&"
         f"redirect_uri={TESLA_REDIRECT_URI}&"
-        f"scope=openid%20offline_access%20vehicle_device_data%20vehicle_cmds%20vehicle_charging_cmds&"
+        f"scope={requests.utils.quote(scopes)}&"
         f"state={state}"
     )
     return RedirectResponse(url=auth_url)
