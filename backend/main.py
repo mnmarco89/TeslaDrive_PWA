@@ -88,19 +88,28 @@ def check_and_protect_voltage(vin: str, token: UserToken, charge_state: dict, db
         # Se la tensione scende a 207V-208V, abbassiamo immediatamente gli Ampere per farla risalire
         if voltage <= 208 and current_amps > 6:
             new_amps = max(6, current_amps - 2)
-            requests.post(
-                f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps",
-                json={"charging_amps": new_amps},
-                headers=headers
-            )
-        # Se la tensione si stabilizza in sicurezza sopra i 218V, rialzano gradualmente gli Ampere
+            try:
+                requests.post(
+                    f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps",
+                    json={"charging_amps": new_amps},
+                    headers=headers,
+                    timeout=5
+                )
+            except Exception as e:
+                print(f"Errore invio comando riduzione ampere: {e}")
+                
+        # Se la tensione si stabilizza in sicurezza sopra i 218V, rialziamo gradualmente gli Ampere
         elif voltage >= 218 and current_amps < 32:
             new_amps = min(32, current_amps + 1)
-            requests.post(
-                f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps",
-                json={"charging_amps": new_amps},
-                headers=headers
-            )
+            try:
+                requests.post(
+                    f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps",
+                    json={"charging_amps": new_amps},
+                    headers=headers,
+                    timeout=5
+                )
+            except Exception as e:
+                print(f"Errore invio comando aumento ampere: {e}")
 
 # ==============================================================================
 # ROTTE APPLICAZIONE & TESLA
@@ -120,11 +129,9 @@ def serve_tesla_public_key():
 def health_check():
     return {"status": "ok"}
 
-
 @app.get("/auth/tesla/start")
 def tesla_start_login():
     state = secrets.token_urlsafe(16)
-    # Aggiunti tutti gli scope corrispondenti ai permessi attivati sul portale
     scopes = "openid offline_access user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds"
     auth_url = (
         f"https://auth.tesla.com/oauth2/v3/authorize?"
@@ -288,7 +295,20 @@ def set_charging_amps(vin: str, payload: dict, token: UserToken = Depends(get_cu
         
     headers = {"Authorization": f"Bearer {token.access_token}", "Content-Type": "application/json"}
     response = requests.post(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps", json={"charging_amps": int(amps)}, headers=headers)
+    
     if response.status_code != 200:
+        try:
+            err_json = response.json()
+            err_msg = err_json.get("error", response.text)
+            if "Vehicle Command Protocol required" in str(err_msg):
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Tesla richiede il protocollo crittografato (Vehicle Command Protocol) per i comandi remoti. Modifica l'amperaggio dall'app ufficiale Tesla."
+                )
+        except HTTPException as he:
+            raise he
+        except:
+            pass
         raise HTTPException(status_code=response.status_code, detail=response.text)
         
     return {"status": "success", "charging_amps": amps}
