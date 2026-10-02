@@ -25,6 +25,14 @@ class UserToken(Base):
     refresh_token = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class UserSettingsDB(Base):
+    __tablename__ = "user_settings"
+    id = Column(Integer, primary_key=True, index=True)
+    electricity = Column(String, default="0.24")
+    diesel = Column(String, default="2.19")
+    diesel_km_l = Column(String, default="15.5")
+    voltage_protection = Column(Integer, default=1) # 1 = Attivo, 0 = Spento
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -57,7 +65,45 @@ def get_current_token(db: Session = Depends(get_db)):
     return token
 
 # ==============================================================================
-# ROTTA PER SERVIRE LA CHIAVE PUBBLICA TESLA
+# SMART VOLTAGE GOVERNOR (Protezione automatica tensione 207V - 220V)
+# ==============================================================================
+def check_and_protect_voltage(vin: str, token: UserToken, charge_state: dict, db: Session):
+    st = db.query(UserSettingsDB).first()
+    if not st:
+        st = UserSettingsDB()
+        db.add(st)
+        db.commit()
+    
+    # Se il toggle di protezione è disattivato dall'utente, non interviene
+    if st.voltage_protection == 0:
+        return
+
+    voltage = charge_state.get("charger_voltage")
+    current_amps = charge_state.get("charge_amps")
+    charging_state = charge_state.get("charging_state")
+    
+    if charging_state == "Charging" and voltage and current_amps:
+        headers = {"Authorization": f"Bearer {token.access_token}", "Content-Type": "application/json"}
+        
+        # Se la tensione scende a 207V-208V, abbassiamo immediatamente gli Ampere per farla risalire
+        if voltage <= 208 and current_amps > 6:
+            new_amps = max(6, current_amps - 2)
+            requests.post(
+                f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps",
+                json={"charging_amps": new_amps},
+                headers=headers
+            )
+        # Se la tensione si stabilizza in sicurezza sopra i 218V, rialzano gradualmente gli Ampere
+        elif voltage >= 218 and current_amps < 32:
+            new_amps = min(32, current_amps + 1)
+            requests.post(
+                f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps",
+                json={"charging_amps": new_amps},
+                headers=headers
+            )
+
+# ==============================================================================
+# ROTTE APPLICAZIONE & TESLA
 # ==============================================================================
 @app.get("/.well-known/appspecific/com.tesla.3p.public-key.pem")
 def serve_tesla_public_key():
@@ -70,9 +116,6 @@ def serve_tesla_public_key():
             return FileResponse(path, media_type="text/plain")
     raise HTTPException(status_code=404, detail="Public key file not found")
 
-# ==============================================================================
-# ROTTE AUTENTICAZIONE
-# ==============================================================================
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
@@ -100,19 +143,14 @@ def tesla_callback(code: str, db: Session = Depends(get_db)):
         "code": code,
         "redirect_uri": TESLA_REDIRECT_URI,
     }
-    
     response = requests.post(token_url, json=payload)
     if response.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch token from Tesla: {response.text}")
+        raise HTTPException(status_code=400, detail=f"Failed to fetch token: {response.text}")
     
     data = response.json()
-    access_token = data.get("access_token")
-    refresh_token = data.get("refresh_token")
-    
-    user_token = UserToken(access_token=access_token, refresh_token=refresh_token)
+    user_token = UserToken(access_token=data.get("access_token"), refresh_token=data.get("refresh_token"))
     db.add(user_token)
     db.commit()
-    
     return RedirectResponse(url="/")
 
 @app.post("/auth/logout")
@@ -126,9 +164,6 @@ def api_status(db: Session = Depends(get_db)):
     token = db.query(UserToken).order_by(UserToken.id.desc()).first()
     return {"authenticated": token is not None}
 
-# ==============================================================================
-# ROTTE API TESLA (Veicoli, Dashboard, Impostazioni, Viaggi)
-# ==============================================================================
 @app.get("/api/vehicles")
 def get_vehicles(token: UserToken = Depends(get_current_token)):
     headers = {"Authorization": f"Bearer {token.access_token}"}
@@ -160,28 +195,29 @@ def get_dashboard(vin: str, token: UserToken = Depends(get_current_token)):
     }
 
 @app.get("/api/settings")
-def get_settings(token: UserToken = Depends(get_current_token)):
-    # Valori di fallback nel caso in cui la Tesla sia offline o non trasmetta il GPS
+def get_settings(token: UserToken = Depends(get_current_token), db: Session = Depends(get_db)):
+    st = db.query(UserSettingsDB).first()
+    if not st:
+        st = UserSettingsDB()
+        db.add(st)
+        db.commit()
+
     diesel_price = 2.19
-    electricity_price = 0.24
+    electricity_price = float(st.electricity)
     
     headers = {"Authorization": f"Bearer {token.access_token}"}
     try:
-        # 1. Ottiene la lista dei veicoli associati
         res = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles", headers=headers, timeout=5)
         if res.status_code == 200:
             vehicles = res.json().get("response", [])
             if vehicles:
                 vin = vehicles[0].get("vin")
-                # 2. Richiede i dati di telemetria inclusa la posizione GPS
                 data_res = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/vehicle_data", headers=headers, timeout=5)
                 if data_res.status_code == 200:
                     drive_state = data_res.json().get("response", {}).get("drive_state", {})
                     lat = drive_state.get("latitude")
                     lon = drive_state.get("longitude")
-                    
                     if lat and lon:
-                        # 3. Interroga l'API ufficiale italiana open-data dei carburanti basata sulle coordinate GPS attuali
                         api_url = f"https://prezzi-carburante.onrender.com/api/distributori?latitude={lat}&longitude={lon}&distance=10&fuel=gasolio&results=1"
                         fuel_res = requests.get(api_url, timeout=5)
                         if fuel_res.status_code == 200:
@@ -191,37 +227,54 @@ def get_settings(token: UserToken = Depends(get_current_token)):
                                 if live_price:
                                     diesel_price = float(live_price)
     except Exception as e:
-        print(f"Errore durante l'aggiornamento dinamico dei prezzi GPS: {e}")
+        print(f"Errore aggiornamento GPS prezzi: {e}")
 
     return {
         "electricity": electricity_price,
         "diesel": round(diesel_price, 2),
-        "diesel_km_l": 15.5
+        "diesel_km_l": float(st.diesel_km_l),
+        "voltage_protection": st.voltage_protection
     }
 
 @app.post("/api/settings")
-def save_settings(settings: dict):
-    return {"status": "saved", "settings": settings}
+def save_settings(payload: dict, db: Session = Depends(get_db)):
+    st = db.query(UserSettingsDB).first()
+    if not st:
+        st = UserSettingsDB()
+        db.add(st)
+    st.electricity = str(payload.get("electricity", st.electricity))
+    st.diesel = str(payload.get("diesel", st.diesel))
+    st.diesel_km_l = str(payload.get("diesel_km_l", st.diesel_km_l))
+    st.voltage_protection = int(payload.get("voltage_protection", st.voltage_protection))
+    db.commit()
+    return {"status": "saved"}
 
 @app.get("/api/trips")
 def get_trips():
     return []
 
 @app.get("/api/charging/{vin}")
-def get_charging_status(vin: str, token: UserToken = Depends(get_current_token)):
+def get_charging_status(vin: str, token: UserToken = Depends(get_current_token), db: Session = Depends(get_db)):
     headers = {"Authorization": f"Bearer {token.access_token}"}
     response = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/vehicle_data", headers=headers)
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.text)
     
     charge_state = response.json().get("response", {}).get("charge_state", {})
+    
+    # Esegue il controllo di protezione voltaggio in tempo reale
+    try:
+        check_and_protect_voltage(vin, token, charge_state, db)
+    except Exception as e:
+        print(f"Errore governor voltaggio: {e}")
+
     return {
-        "charging_state": charge_state.get("charging_state"), # "Charging", "Stopped", "Complete"
+        "charging_state": charge_state.get("charging_state"),
         "charge_amps": charge_state.get("charge_amps"),
         "charge_current_request": charge_state.get("charge_current_request"),
         "charger_voltage": charge_state.get("charger_voltage"),
         "charger_actual_current": charge_state.get("charger_actual_current"),
-        "charger_power": charge_state.get("charger_power"), # kW in tempo reale
+        "charger_power": charge_state.get("charger_power"),
     }
 
 @app.post("/api/vehicles/{vin}/set_amps")
@@ -231,14 +284,11 @@ def set_charging_amps(vin: str, payload: dict, token: UserToken = Depends(get_cu
         raise HTTPException(status_code=400, detail="Valore di amperaggio non specificato")
         
     headers = {"Authorization": f"Bearer {token.access_token}", "Content-Type": "application/json"}
-    body = {"charging_amps": int(amps)}
-    
-    response = requests.post(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps", json=body, headers=headers)
+    response = requests.post(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps", json={"charging_amps": int(amps)}, headers=headers)
     if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=f"Errore comando Tesla: {response.text}")
+        raise HTTPException(status_code=response.status_code, detail=response.text)
         
     return {"status": "success", "charging_amps": amps}
 
-# Servizio dei file statici del frontend React (deve rimanere in fondo)
 if os.path.exists("static"):
     app.mount("/", StaticFiles(directory="static", html=True), name="static")

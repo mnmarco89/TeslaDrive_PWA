@@ -17,7 +17,6 @@ function App() {
   const [dash, setDash] = useState(null);
   const [charging, setCharging] = useState(null);
   const [settings, setSettings] = useState(null);
-  const [trips, setTrips] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [targetAmps, setTargetAmps] = useState(16);
@@ -38,16 +37,14 @@ function App() {
       if (chosen) {
         setVin(chosen);
         localStorage.setItem('shmersla_vin', chosen);
-        const dashData = await api('/api/dashboard/' + chosen);
-        setDash(dashData);
+        setDash(await api('/api/dashboard/' + chosen));
         try {
           const chData = await api('/api/charging/' + chosen);
           setCharging(chData);
           if (chData.charge_amps) setTargetAmps(chData.charge_amps);
-        } catch (err) { console.error(err); }
+        } catch (e) { console.error(e); }
       }
       setSettings(await api('/api/settings'));
-      setTrips(await api('/api/trips'));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -62,8 +59,7 @@ function App() {
     const t = setInterval(async () => {
       try {
         setDash(await api('/api/dashboard/' + vin));
-        const chData = await api('/api/charging/' + vin);
-        setCharging(chData);
+        setCharging(await api('/api/charging/' + vin));
       } catch (e) { setError(e.message); }
     }, 15000);
     return () => clearInterval(t);
@@ -86,7 +82,7 @@ function App() {
       setError(`⚡ Amperaggio impostato a ${newAmps}A`);
       setTimeout(() => setError(''), 3000);
     } catch (e) {
-      setError('Errore invio comando ampere: ' + e.message);
+      setError('Errore comando ampere: ' + e.message);
     }
   };
 
@@ -102,7 +98,7 @@ function App() {
           <img src="/logo.png" alt="Shmersla Logo" className="brand-logo-img" />
           <div>
             <h1>Shmersla</h1>
-            <span className="subtitle">Fleet Telemetry & Real-Time Data</span>
+            <span className="subtitle">Fleet Telemetry & Voltage Control</span>
           </div>
         </div>
         {connected && <button className="btn-logout" onClick={logout}>Scollega Account</button>}
@@ -119,7 +115,7 @@ function App() {
         <div className="login-hero">
           <div className="hero-badge">SECURE OAUTH 2.0</div>
           <h2>La tua Shmersla, <br/>senza compromessi.</h2>
-          <p>Monitoraggio in tempo reale, telemetria avanzata e gestione energetica direttamente integrata con la tua vettura.</p>
+          <p>Monitoraggio in tempo reale, telemetria avanzata e protezione intelligente del voltaggio domestico.</p>
           <button className="btn-tesla-login" onClick={() => window.location.href = "/auth/tesla/start"}>
             <span>Accedi con Tesla ID</span>
           </button>
@@ -159,31 +155,31 @@ function App() {
             <MetricCard title="Stato Marcia" value={dash?.shift_state || 'P'} icon="⚙️" highlight={true} />
           </div>
 
-          {/* Pannello Gestione Ricarica & Prevenzione Protezione Contatore */}
+          {/* Pannello Gestione Ricarica & Smart Voltage Governor */}
           <section className="glass-panel full-width">
             <div className="panel-header">
-              <h3>🔌 Gestione Ricarica & Controllo Carico</h3>
+              <h3>🔌 Gestione Ricarica & Smart Voltage Governor</h3>
               <span className={`live-badge ${charging?.charging_state === 'Charging' ? 'active-charging' : ''}`}>
                 {charging?.charging_state === 'Charging' ? 'IN CARICA' : (charging?.charging_state || 'STANDBY')}
               </span>
             </div>
+            
             <div className="charging-control-grid">
               <div className="charge-stat-box">
                 <span>Potenza Attuale</span>
                 <strong>{charging?.charger_power != null ? charging.charger_power + ' kW' : '0 kW'}</strong>
               </div>
               <div className="charge-stat-box">
-                <span>Voltaggio / Corrente</span>
-                <strong>{charging?.charger_voltage ? `${charging.charger_voltage}V / ${charging.charger_actual_current || 0}A` : '—'}</strong>
+                <span>Tensione / Corrente</span>
+                <strong style={{ color: (charging?.charger_voltage && charging.charger_voltage < 210) ? '#ff9500' : 'inherit' }}>
+                  {charging?.charger_voltage ? `${charging.charger_voltage}V / ${charging.charger_actual_current || 0}A` : '—'}
+                </strong>
               </div>
               <div className="charge-control-slider-box">
                 <label>Limitazione Amperaggio ({targetAmps} A)</label>
                 <div className="slider-row">
                   <input 
-                    type="range" 
-                    min="5" 
-                    max="32" 
-                    step="1" 
+                    type="range" min="5" max="32" step="1" 
                     value={targetAmps} 
                     onChange={e => setTargetAmps(+e.target.value)}
                     onMouseUp={e => changeAmps(+e.target.value)}
@@ -195,8 +191,32 @@ function App() {
                     <button onClick={() => changeAmps(24)}>24A</button>
                   </div>
                 </div>
-                <span className="slider-hint">💡 Riduci l'amperaggio se avvii elettrodomestici pesanti in casa per evitare il distacco del contatore.</span>
               </div>
+            </div>
+
+            {/* Interruttore Toggle per la Protezione Voltaggio */}
+            <div className="voltage-guard-box">
+              <div className="guard-info">
+                <span>🛡️ Protezione Automatica Voltaggio (Target 207V - 220V)</span>
+                <small>Riduce gli Ampere se la tensione scende a 207V e li rialza quando si stabilizza sopra i 218V.</small>
+              </div>
+              <label className="switch">
+                <input 
+                  type="checkbox" 
+                  checked={settings?.voltage_protection === 1} 
+                  onChange={async (e) => {
+                    const val = e.target.checked ? 1 : 0;
+                    const updated = { ...settings, voltage_protection: val };
+                    setSettings(updated);
+                    await api('/api/settings', { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify(updated) 
+                    });
+                  }} 
+                />
+                <span className="slider round"></span>
+              </label>
             </div>
           </section>
 
