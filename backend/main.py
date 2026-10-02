@@ -207,6 +207,38 @@ def save_settings(settings: dict):
 def get_trips():
     return []
 
+@app.get("/api/charging/{vin}")
+def get_charging_status(vin: str, token: UserToken = Depends(get_current_token)):
+    headers = {"Authorization": f"Bearer {token.access_token}"}
+    response = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/vehicle_data", headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    
+    charge_state = response.json().get("response", {}).get("charge_state", {})
+    return {
+        "charging_state": charge_state.get("charging_state"), # "Charging", "Stopped", "Complete"
+        "charge_amps": charge_state.get("charge_amps"),
+        "charge_current_request": charge_state.get("charge_current_request"),
+        "charger_voltage": charge_state.get("charger_voltage"),
+        "charger_actual_current": charge_state.get("charger_actual_current"),
+        "charger_power": charge_state.get("charger_power"), # kW in tempo reale
+    }
+
+@app.post("/api/vehicles/{vin}/set_amps")
+def set_charging_amps(vin: str, payload: dict, token: UserToken = Depends(get_current_token)):
+    amps = payload.get("amps")
+    if not amps:
+        raise HTTPException(status_code=400, detail="Valore di amperaggio non specificato")
+        
+    headers = {"Authorization": f"Bearer {token.access_token}", "Content-Type": "application/json"}
+    body = {"charging_amps": int(amps)}
+    
+    response = requests.post(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/command/set_charging_amps", json=body, headers=headers)
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=f"Errore comando Tesla: {response.text}")
+        
+    return {"status": "success", "charging_amps": amps}
+
 # Servizio dei file statici del frontend React (deve rimanere in fondo)
 if os.path.exists("static"):
     app.mount("/", StaticFiles(directory="static", html=True), name="static")

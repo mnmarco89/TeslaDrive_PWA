@@ -15,10 +15,12 @@ function App() {
   const [vehicles, setVehicles] = useState([]);
   const [vin, setVin] = useState(localStorage.getItem('shmersla_vin') || '');
   const [dash, setDash] = useState(null);
+  const [charging, setCharging] = useState(null);
   const [settings, setSettings] = useState(null);
   const [trips, setTrips] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [targetAmps, setTargetAmps] = useState(16);
 
   const load = async () => {
     setLoading(true);
@@ -36,7 +38,13 @@ function App() {
       if (chosen) {
         setVin(chosen);
         localStorage.setItem('shmersla_vin', chosen);
-        setDash(await api('/api/dashboard/' + chosen));
+        const dashData = await api('/api/dashboard/' + chosen);
+        setDash(dashData);
+        try {
+          const chData = await api('/api/charging/' + chosen);
+          setCharging(chData);
+          if (chData.charge_amps) setTargetAmps(chData.charge_amps);
+        } catch (err) { console.error(err); }
       }
       setSettings(await api('/api/settings'));
       setTrips(await api('/api/trips'));
@@ -51,14 +59,35 @@ function App() {
 
   useEffect(() => {
     if (!vin || !connected) return;
-    const t = setInterval(() => api('/api/dashboard/' + vin).then(setDash).catch(e => setError(e.message)), 15000);
+    const t = setInterval(async () => {
+      try {
+        setDash(await api('/api/dashboard/' + vin));
+        const chData = await api('/api/charging/' + vin);
+        setCharging(chData);
+      } catch (e) { setError(e.message); }
+    }, 15000);
     return () => clearInterval(t);
   }, [vin, connected]);
 
-  const save = async () => {
+  const saveSettings = async () => {
     await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
     setError('✨ Impostazioni salvate con successo.');
     setTimeout(() => setError(''), 3000);
+  };
+
+  const changeAmps = async (newAmps) => {
+    try {
+      setTargetAmps(newAmps);
+      await api(`/api/vehicles/${vin}/set_amps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amps: newAmps })
+      });
+      setError(`⚡ Amperaggio impostato a ${newAmps}A`);
+      setTimeout(() => setError(''), 3000);
+    } catch (e) {
+      setError('Errore invio comando ampere: ' + e.message);
+    }
   };
 
   const logout = async () => {
@@ -79,7 +108,7 @@ function App() {
         {connected && <button className="btn-logout" onClick={logout}>Scollega Account</button>}
       </header>
 
-      {error && <div className={`notice ${error.includes('✨') ? 'success' : ''}`}>{error}</div>}
+      {error && <div className={`notice ${error.includes('✨') || error.includes('⚡') ? 'success' : ''}`}>{error}</div>}
 
       {loading ? (
         <div className="loader-container">
@@ -108,6 +137,7 @@ function App() {
                   setVin(x);
                   localStorage.setItem('shmersla_vin', x);
                   setDash(await api('/api/dashboard/' + x));
+                  setCharging(await api('/api/charging/' + x));
                 }}>
                   {vehicles.map(x => <option key={x.vin} value={x.vin}>{x.display_name || x.vin}</option>)}
                 </select>
@@ -128,6 +158,47 @@ function App() {
             <MetricCard title="Velocità Istantanea" value={dash?.speed_kmh != null ? Math.round(dash.speed_kmh) + ' km/h' : '0 km/h'} icon="🚀" />
             <MetricCard title="Stato Marcia" value={dash?.shift_state || 'P'} icon="⚙️" highlight={true} />
           </div>
+
+          {/* Pannello Gestione Ricarica & Prevenzione Protezione Contatore */}
+          <section className="glass-panel full-width">
+            <div className="panel-header">
+              <h3>🔌 Gestione Ricarica & Controllo Carico</h3>
+              <span className={`live-badge ${charging?.charging_state === 'Charging' ? 'active-charging' : ''}`}>
+                {charging?.charging_state === 'Charging' ? 'IN CARICA' : (charging?.charging_state || 'STANDBY')}
+              </span>
+            </div>
+            <div className="charging-control-grid">
+              <div className="charge-stat-box">
+                <span>Potenza Attuale</span>
+                <strong>{charging?.charger_power != null ? charging.charger_power + ' kW' : '0 kW'}</strong>
+              </div>
+              <div className="charge-stat-box">
+                <span>Voltaggio / Corrente</span>
+                <strong>{charging?.charger_voltage ? `${charging.charger_voltage}V / ${charging.charger_actual_current || 0}A` : '—'}</strong>
+              </div>
+              <div className="charge-control-slider-box">
+                <label>Limitazione Amperaggio ({targetAmps} A)</label>
+                <div className="slider-row">
+                  <input 
+                    type="range" 
+                    min="5" 
+                    max="32" 
+                    step="1" 
+                    value={targetAmps} 
+                    onChange={e => setTargetAmps(+e.target.value)}
+                    onMouseUp={e => changeAmps(+e.target.value)}
+                    onTouchEnd={e => changeAmps(+e.target.value)}
+                  />
+                  <div className="amp-preset-buttons">
+                    <button onClick={() => changeAmps(10)}>10A</button>
+                    <button onClick={() => changeAmps(16)}>16A</button>
+                    <button onClick={() => changeAmps(24)}>24A</button>
+                  </div>
+                </div>
+                <span className="slider-hint">💡 Riduci l'amperaggio se avvii elettrodomestici pesanti in casa per evitare il distacco del contatore.</span>
+              </div>
+            </div>
+          </section>
 
           <div className="panels-split">
             <div className="glass-panel">
@@ -164,7 +235,7 @@ function App() {
                     <label>Consumo Termico (km/L)</label>
                     <input type="number" step="0.1" value={settings.diesel_km_l} onChange={e => setSettings({ ...settings, diesel_km_l: +e.target.value })} />
                   </div>
-                  <button className="btn-save" onClick={save}>Salva Configurazione</button>
+                  <button className="btn-save" onClick={saveSettings}>Salva Configurazione</button>
                 </div>
               )}
             </div>

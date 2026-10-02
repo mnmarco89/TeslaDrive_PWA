@@ -16,6 +16,24 @@
   box-shadow: 0 0 12px rgba(232, 33, 39, 0.4);
 }
 
+.full-width { grid-column: 1 / -1; }
+.active-charging { background: rgba(52, 199, 89, 0.2) !important; color: #34c759 !important; }
+.charging-control-grid { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 20px; align-items: center; margin-top: 15px; }
+@media(max-width: 900px) { .charging-control-grid { grid-template-columns: 1fr; } }
+
+.charge-stat-box { background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 5px; }
+.charge-stat-box span { font-size: 11px; color: var(--text-muted); }
+.charge-stat-box strong { font-size: 22px; color: var(--text-main); }
+
+.charge-control-slider-box { background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; }
+.charge-control-slider-box label { font-size: 12px; font-weight: 600; color: var(--text-main); }
+.slider-row { display: flex; align-items: center; gap: 15px; }
+.slider-row input[type=range] { flex: 1; accent-color: var(--accent-red); cursor: pointer; }
+.amp-preset-buttons { display: flex; gap: 6px; }
+.amp-preset-buttons button { background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+.amp-preset-buttons button:hover { background: var(--accent-red); border-color: var(--accent-red); }
+.slider-hint { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; }
 
