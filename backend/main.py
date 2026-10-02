@@ -160,8 +160,40 @@ def get_dashboard(vin: str, token: UserToken = Depends(get_current_token)):
     }
 
 @app.get("/api/settings")
-def get_settings():
-    return {"electricity": 0.25, "diesel": 1.85, "diesel_km_l": 15.0}
+def get_settings(token: UserToken = Depends(get_current_token)):
+    diesel_price = 1.76  # Valore di fallback predefinito
+    electricity_price = 0.21
+    
+    headers = {"Authorization": f"Bearer {token.access_token}"}
+    try:
+        # 1. Recupera la posizione della Tesla
+        res = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles", headers=headers, timeout=5)
+        if res.status_code == 200:
+            vehicles = res.json().get("response", [])
+            if vehicles:
+                vin = vehicles[0].get("vin")
+                data_res = requests.get(f"{TESLA_AUDIENCE}/api/1/vehicles/{vin}/vehicle_data", headers=headers, timeout=5)
+                if data_res.status_code == 200:
+                    drive_state = data_res.json().get("response", {}).get("drive_state", {})
+                    lat = drive_state.get("latitude")
+                    lon = drive_state.get("longitude")
+                    
+                    if lat and lon:
+                        # 2. Interroga l'API pubblica basata sugli Open Data del MIMIT per trovare i distributori vicini
+                        api_url = f"https://prezzi-carburante.onrender.com/api/search?latitude={lat}&longitude={lon}&distance=10&fuel=diesel&results=1"
+                        fuel_res = requests.get(api_url, timeout=5)
+                        if fuel_res.status_code == 200:
+                            stations = fuel_res.json()
+                            if stations and isinstance(stations, list):
+                                diesel_price = float(stations[0].get("prezzo", diesel_price))
+    except Exception as e:
+        print(f"Errore recupero prezzi dinamici: {e}")
+
+    return {
+        "electricity": electricity_price,
+        "diesel": round(diesel_price, 2),
+        "diesel_km_l": 16.0
+    }
 
 @app.post("/api/settings")
 def save_settings(settings: dict):

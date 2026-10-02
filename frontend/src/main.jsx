@@ -25,14 +25,8 @@ function App() {
     setError('');
     try {
       const st = await api('/api/status');
-      
-      // FIX 1: Il backend restituisce "authenticated", non "connected"
       setConnected(st.authenticated);
-      
-      if (!st.authenticated) {
-        setLoading(false);
-        return;
-      }
+      if (!st.authenticated) { setLoading(false); return; }
       
       const v = await api('/api/vehicles');
       const list = v.response || v;
@@ -57,115 +51,148 @@ function App() {
 
   useEffect(() => {
     if (!vin || !connected) return;
-    const t = setInterval(() => api('/api/dashboard/' + vin).then(setDash).catch(e => setError(e.message)), 30000);
+    const t = setInterval(() => api('/api/dashboard/' + vin).then(setDash).catch(e => setError(e.message)), 15000);
     return () => clearInterval(t);
   }, [vin, connected]);
 
   const save = async () => {
     await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
-    setError('Impostazioni salvate.');
+    setError('✨ Impostazioni salvate con successo.');
+    setTimeout(() => setError(''), 3000);
   };
 
   const logout = async () => {
     await api('/auth/logout', { method: 'POST' });
-    setConnected(false);
-    setDash(null);
-    setVehicles([]);
+    setConnected(false); setDash(null); setVehicles([]);
   };
 
   return (
-    <div className="app">
-      <header>
-        <div><strong>TeslaDrive</strong><span> dati Tesla reali</span></div>
-        {connected ? (
-          <button className="ghost" onClick={logout}>Scollega</button>
-        ) : (
-          // FIX 2: Navigazione forzata aggirando la PWA
-          <button className="connect" onClick={() => window.location.href = "/auth/tesla/start"}>Collega Tesla</button>
-        )}
-      </header>
-      
-      {error && <div className="notice">{error}</div>}
-      
-      {loading ? (
-        <main className="empty"><h1>Caricamento…</h1></main>
-      ) : !connected ? (
-        <main className="empty">
-          <div className="logo">T</div>
-          <h1>La tua Tesla, in una sola schermata caro Shmertol.</h1>
-          <p>Collega il tuo account Tesla. L'autorizzazione avviene direttamente sui server Tesla.</p>
-          <button className="button" onClick={() => window.location.href = "/auth/tesla/start"}>Accedi con Tesla</button>
-          <small>Il client secret non viene mai inviato al telefono.</small>
-        </main>
-      ) : (
-        <main>
-          <section className="car">
-            <div>
-              <label>VEICOLO</label>
-              <h1>{vehicles.find(x => x.vin === vin)?.display_name || vin}</h1>
-              <select value={vin} onChange={async e => {
-                const x = e.target.value;
-                setVin(x);
-                localStorage.setItem('tesladrive_vin', x);
-                setDash(await api('/api/dashboard/' + x));
-              }}>
-                {vehicles.map(x => <option key={x.vin} value={x.vin}>{x.display_name || x.vin}</option>)}
-              </select>
-            </div>
-            <div className="battery">{dash?.battery ?? '—'}<em>%</em></div>
-          </section>
-          
-          <div className="grid">
-            <Card t="Autonomia" v={dash?.range_km != null ? Math.round(dash.range_km) + ' km' : '—'} />
-            <Card t="Odometro" v={dash?.odometer_km != null ? Math.round(dash.odometer_km) + ' km' : '—'} />
-            <Card t="Velocità" v={dash?.speed_kmh != null ? Math.round(dash.speed_kmh) + ' km/h' : '0 km/h'} />
-            <Card t="Marcia" v={dash?.shift_state || 'P'} />
+    <div className="tesla-app">
+      <header className="app-header">
+        <div className="brand">
+          <div className="brand-logo">T</div>
+          <div>
+            <h1>TeslaDrive</h1>
+            <span className="subtitle">Fleet Telemetry & Real-Time Data</span>
           </div>
-          
-          <section className="panel">
-            <div className="panelhead"><h2>🧭 Navigazione</h2><span>Fleet Telemetry</span></div>
-            {dash?.navigation && Object.keys(dash.navigation).length ? (
-              <pre>{JSON.stringify(dash.navigation, null, 2)}</pre>
-            ) : (
-              <div className="muted">Nessun dato di navigazione ricevuto. La lettura di destinazione e RouteLine verrà attivata con il server Fleet Telemetry e la configurazione del veicolo.</div>
-            )}
-          </section>
-          
-          <section className="panel">
-            <h2>⚡ Costi e risparmio</h2>
-            {settings && (
-              <div className="settings">
-                <label>Energia €/kWh<input type="number" step="0.01" value={settings.electricity} onChange={e => setSettings({ ...settings, electricity: +e.target.value })} /></label>
-                <label>Diesel €/L<input type="number" step="0.01" value={settings.diesel} onChange={e => setSettings({ ...settings, diesel: +e.target.value })} /></label>
-                <label>Diesel km/L<input type="number" step="0.1" value={settings.diesel_km_l} onChange={e => setSettings({ ...settings, diesel_km_l: +e.target.value })} /></label>
-                <button onClick={save}>Salva</button>
+        </div>
+        {connected && <button className="btn-logout" onClick={logout}>Scollega Account</button>}
+      </header>
+
+      {error && <div className={`notice ${error.includes('✨') ? 'success' : ''}`}>{error}</div>}
+
+      {loading ? (
+        <div className="loader-container">
+          <div className="tesla-spinner"></div>
+          <p>Connessione ai server Tesla in corso...</p>
+        </div>
+      ) : !connected ? (
+        <div className="login-hero">
+          <div className="hero-badge">SECURE OAUTH 2.0</div>
+          <h2>La tua Tesla, <br/>senza compromessi.</h2>
+          <p>Monitoraggio in tempo reale, telemetria avanzata e gestione energetica direttamente integrata con la tua vettura.</p>
+          <button className="btn-tesla-login" onClick={() => window.location.href = "/auth/tesla/start"}>
+            <span>Accedi con Tesla ID</span>
+          </button>
+          <span className="security-note">🔒 Credenziali gestite direttamente dai server crittografati Tesla.</span>
+        </div>
+      ) : (
+        <main className="dashboard-grid">
+          {/* Box Principale Veicolo */}
+          <section className="car-hero-card">
+            <div className="car-info">
+              <span className="label-top">VEICOLO ATTIVO</span>
+              <h2>{vehicles.find(x => x.vin === vin)?.display_name || 'Model 3 / Y'}</h2>
+              <div className="select-wrapper">
+                <select value={vin} onChange={async e => {
+                  const x = e.target.value;
+                  setVin(x);
+                  localStorage.setItem('tesladrive_vin', x);
+                  setDash(await api('/api/dashboard/' + x));
+                }}>
+                  {vehicles.map(x => <option key={x.vin} value={x.vin}>{x.display_name || x.vin}</option>)}
+                </select>
               </div>
-            )}
+            </div>
+            <div className="battery-display">
+              <div className="battery-ring">
+                <span className="battery-value">{dash?.battery ?? '—'}</span>
+                <span className="battery-unit">%</span>
+              </div>
+              <span className="battery-label">Batteria Residua</span>
+            </div>
           </section>
-          
-          <section className="panel">
-            <h2>🧾 Storico viaggi</h2>
-            {trips.length ? (
-              <div>
-                {trips.map(t => (
-                  <div className="trip" key={t.id}>
-                    <b>{new Date(t.started * 1000).toLocaleString('it-IT')}</b>
-                    <span>{(t.km || 0).toFixed(1)} km</span>
-                    <span>{(t.energy_kwh || 0).toFixed(1)} kWh</span>
+
+          {/* Metric Cards */}
+          <div className="metrics-row">
+            <MetricCard title="Autonomia Stimata" value={dash?.range_km != null ? Math.round(dash.range_km) + ' km' : '—'} icon="🔋" />
+            <MetricCard title="Odometro Totale" value={dash?.odometer_km != null ? Math.round(dash.odometer_km).toLocaleString() + ' km' : '—'} icon="🛣️" />
+            <MetricCard title="Velocità Istantanea" value={dash?.speed_kmh != null ? Math.round(dash.speed_kmh) + ' km/h' : '0 km/h'} icon="🚀" />
+            <MetricCard title="Stato Marcia" value={dash?.shift_state || 'P'} icon="⚙️" highlight={true} />
+          </div>
+
+          {/* Pannelli Inferiori */}
+          <div className="panels-split">
+            <div className="glass-panel">
+              <div className="panel-header">
+                <h3>🧭 Navigazione & Telemetria</h3>
+                <span className="live-badge">LIVE</span>
+              </div>
+              {dash?.navigation && Object.keys(dash.navigation).length ? (
+                <pre className="code-box">{JSON.stringify(dash.navigation, null, 2)}</pre>
+              ) : (
+                <div className="empty-state-box">
+                  <p>Nessuna destinazione attiva al momento.</p>
+                  <span>La rotta e le indicazioni appariranno qui automaticamente durante il viaggio.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="glass-panel">
+              <div className="panel-header">
+                <h3>⚡ Costi ed Energia</h3>
+                <span className="auto-loc-badge">📍 Prezzi Nazionali</span>
+              </div>
+              {settings && (
+                <div className="settings-form">
+                  <div className="input-group">
+                    <label>Energia Elettrica (€/kWh)</label>
+                    <input type="number" step="0.01" value={settings.electricity} onChange={e => setSettings({ ...settings, electricity: +e.target.value })} />
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="muted">Lo storico automatico viene alimentato dalla Fleet Telemetry.</div>
-            )}
-          </section>
+                  <div className="input-group">
+                    <label>Prezzo Diesel (€/L)</label>
+                    <input type="number" step="0.01" value={settings.diesel} onChange={e => setSettings({ ...settings, diesel: +e.target.value })} />
+                  </div>
+                  <div className="input-group">
+                    <label>Consumo Termico (km/L)</label>
+                    <input type="number" step="0.1" value={settings.diesel_km_l} onChange={e => setSettings({ ...settings, diesel_km_l: +e.target.value })} />
+                  </div>
+                  <button className="btn-save" onClick={save}>Salva Configurazione</button>
+                </div>
+              )}
+            </div>
+          </div>
         </main>
       )}
-      <footer>Ultimo aggiornamento: {dash?.updated_at ? new Date(dash.updated_at).toLocaleTimeString('it-IT') : '—'}</footer>
+
+      <footer className="app-footer">
+        <span>TeslaDrive PWA • Sincronizzazione Cloud</span>
+        <span>Aggiornato: {dash?.updated_at ? new Date(dash.updated_at).toLocaleTimeString('it-IT') : '—'}</span>
+      </footer>
     </div>
   );
 }
 
-function Card({ t, v }) { return <div className="card"><span>{t}</span><strong>{v}</strong></div> }
+function MetricCard({ title, value, icon, highlight }) {
+  return (
+    <div className={`metric-card ${highlight ? 'highlight' : ''}`}>
+      <div className="metric-icon">{icon}</div>
+      <div className="metric-content">
+        <span className="metric-title">{title}</span>
+        <strong className="metric-value">{value}</strong>
+      </div>
+    </div>
+  );
+}
 
 createRoot(document.getElementById('root')).render(<App />);
