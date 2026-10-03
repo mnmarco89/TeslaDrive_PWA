@@ -20,6 +20,9 @@ function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [targetAmps, setTargetAmps] = useState(16);
+  
+  // Nuovo stato per la navigazione a schede
+  const [activeTab, setActiveTab] = useState('ricarica'); // 'ricarica', 'telemetria', 'costi'
 
   const load = async () => {
     setLoading(true);
@@ -123,6 +126,8 @@ function App() {
         </div>
       ) : (
         <main className="dashboard-grid">
+          
+          {/* CRUSCOTTO PRINCIPALE SEMPRE VISIBILE */}
           <section className="car-hero-card">
             <div className="car-info">
               <span className="label-top">VEICOLO ATTIVO</span>
@@ -148,117 +153,148 @@ function App() {
             </div>
           </section>
 
-          <div className="metrics-row">
-            <MetricCard title="Autonomia Stimata" value={dash?.range_km != null ? Math.round(dash.range_km) + ' km' : '—'} icon="🔋" />
-            <MetricCard title="Odometro Totale" value={dash?.odometer_km != null ? Math.round(dash.odometer_km).toLocaleString() + ' km' : '—'} icon="🛣️" />
-            <MetricCard title="Velocità Istantanea" value={dash?.speed_kmh != null ? Math.round(dash.speed_kmh) + ' km/h' : '0 km/h'} icon="🚀" />
-            <MetricCard title="Stato Marcia" value={dash?.shift_state || 'P'} icon="⚙️" highlight={true} />
+          {/* MENU A SCHEDE */}
+          <div className="tabs-nav">
+            <button 
+              className={`tab-btn ${activeTab === 'ricarica' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('ricarica')}
+            >
+              🔌 Ricarica & Voltaggio
+            </button>
+            <button 
+              className={`tab-btn ${activeTab === 'telemetria' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('telemetria')}
+            >
+              🧭 Telemetria & Navigazione
+            </button>
+            <button 
+              className={`tab-btn ${activeTab === 'costi' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('costi')}
+            >
+              ⚡ Costi ed Energia
+            </button>
           </div>
 
-          {/* Pannello Gestione Ricarica & Smart Voltage Governor */}
-          <section className="glass-panel full-width">
-            <div className="panel-header">
-              <h3>🔌 Gestione Ricarica & Smart Voltage Governor</h3>
-              <span className={`live-badge ${charging?.charging_state === 'Charging' ? 'active-charging' : ''}`}>
-                {charging?.charging_state === 'Charging' ? 'IN CARICA' : (charging?.charging_state || 'STANDBY')}
-              </span>
-            </div>
-            
-            <div className="charging-control-grid">
-              <div className="charge-stat-box">
-                <span>Potenza Attuale</span>
-                <strong>{charging?.charger_power != null ? charging.charger_power + ' kW' : '0 kW'}</strong>
-              </div>
-              <div className="charge-stat-box">
-                <span>Tensione / Corrente</span>
-                <strong style={{ color: (charging?.charger_voltage && charging.charger_voltage < 210) ? '#ff9500' : 'inherit' }}>
-                  {charging?.charger_voltage ? `${charging.charger_voltage}V / ${charging.charger_actual_current || 0}A` : '—'}
-                </strong>
-              </div>
-              <div className="charge-control-slider-box">
-                <label>Limitazione Amperaggio ({targetAmps} A)</label>
-                <div className="slider-row">
-                  <input 
-                    type="range" min="5" max="32" step="1" 
-                    value={targetAmps} 
-                    onChange={e => setTargetAmps(+e.target.value)}
-                    onMouseUp={e => changeAmps(+e.target.value)}
-                    onTouchEnd={e => changeAmps(+e.target.value)}
-                  />
-                  <div className="amp-preset-buttons">
-                    <button onClick={() => changeAmps(10)}>10A</button>
-                    <button onClick={() => changeAmps(16)}>16A</button>
-                    <button onClick={() => changeAmps(24)}>24A</button>
+          <div className="tab-content">
+            {/* TAB: RICARICA & VOLTAGGIO */}
+            {activeTab === 'ricarica' && (
+              <section className="glass-panel full-width">
+                <div className="panel-header">
+                  <h3>🔌 Gestione Ricarica & Smart Voltage Governor</h3>
+                  <span className={`live-badge ${charging?.charging_state === 'Charging' ? 'active-charging' : ''}`}>
+                    {charging?.charging_state === 'Charging' ? 'IN CARICA' : (charging?.charging_state || 'STANDBY')}
+                  </span>
+                </div>
+                
+                <div className="charging-control-grid">
+                  <div className="charge-stat-box">
+                    <span>Potenza Attuale</span>
+                    <strong>{charging?.charger_power != null ? charging.charger_power + ' kW' : '0 kW'}</strong>
+                  </div>
+                  <div className="charge-stat-box">
+                    <span>Tensione / Corrente</span>
+                    <strong style={{ color: (charging?.charger_voltage && charging.charger_voltage < 210) ? '#ff9500' : 'inherit' }}>
+                      {charging?.charger_voltage ? `${charging.charger_voltage}V / ${charging.charger_actual_current || 0}A` : '—'}
+                    </strong>
+                  </div>
+                  <div className="charge-control-slider-box">
+                    <label>Limitazione Amperaggio ({targetAmps} A)</label>
+                    <div className="slider-row">
+                      <input 
+                        type="range" min="5" max="32" step="1" 
+                        value={targetAmps} 
+                        onChange={e => setTargetAmps(+e.target.value)}
+                        onMouseUp={e => changeAmps(+e.target.value)}
+                        onTouchEnd={e => changeAmps(+e.target.value)}
+                      />
+                      <div className="amp-preset-buttons">
+                        <button onClick={() => changeAmps(10)}>10A</button>
+                        <button onClick={() => changeAmps(16)}>16A</button>
+                        <button onClick={() => changeAmps(24)}>24A</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Interruttore Toggle per la Protezione Voltaggio */}
-            <div className="voltage-guard-box">
-              <div className="guard-info">
-                <span>🛡️ Protezione Automatica Voltaggio (Target 207V - 220V)</span>
-                <small>Riduce gli Ampere se la tensione scende a 207V e li rialza quando si stabilizza sopra i 218V.</small>
-              </div>
-              <label className="switch">
-                <input 
-                  type="checkbox" 
-                  checked={settings?.voltage_protection === 1} 
-                  onChange={async (e) => {
-                    const val = e.target.checked ? 1 : 0;
-                    const updated = { ...settings, voltage_protection: val };
-                    setSettings(updated);
-                    await api('/api/settings', { 
-                      method: 'POST', 
-                      headers: { 'Content-Type': 'application/json' }, 
-                      body: JSON.stringify(updated) 
-                    });
-                  }} 
-                />
-                <span className="slider round"></span>
-              </label>
-            </div>
-          </section>
-
-          <div className="panels-split">
-            <div className="glass-panel">
-              <div className="panel-header">
-                <h3>🧭 Navigazione & Telemetria</h3>
-                <span className="live-badge">LIVE</span>
-              </div>
-              {dash?.navigation && Object.keys(dash.navigation).length ? (
-                <pre className="code-box">{JSON.stringify(dash.navigation, null, 2)}</pre>
-              ) : (
-                <div className="empty-state-box">
-                  <p>Nessuna destinazione attiva al momento.</p>
-                  <span>La rotta e le indicazioni appariranno qui automaticamente durante il viaggio.</span>
+                <div className="voltage-guard-box">
+                  <div className="guard-info">
+                    <span>🛡️ Protezione Automatica Voltaggio (Target 207V - 220V)</span>
+                    <small>Riduce gli Ampere se la tensione scende a 207V e li rialza quando si stabilizza sopra i 218V.</small>
+                  </div>
+                  <label className="switch">
+                    <input 
+                      type="checkbox" 
+                      checked={settings?.voltage_protection === 1} 
+                      onChange={async (e) => {
+                        const val = e.target.checked ? 1 : 0;
+                        const updated = { ...settings, voltage_protection: val };
+                        setSettings(updated);
+                        await api('/api/settings', { 
+                          method: 'POST', 
+                          headers: { 'Content-Type': 'application/json' }, 
+                          body: JSON.stringify(updated) 
+                        });
+                      }} 
+                    />
+                    <span className="slider round"></span>
+                  </label>
                 </div>
-              )}
-            </div>
+              </section>
+            )}
 
-            <div className="glass-panel">
-              <div className="panel-header">
-                <h3>⚡ Costi ed Energia</h3>
-                <span className="auto-loc-badge">📍 GPS Dinamico</span>
-              </div>
-              {settings && (
-                <div className="settings-form">
-                  <div className="input-group">
-                    <label>Energia Elettrica (€/kWh)</label>
-                    <input type="number" step="0.01" value={settings.electricity} onChange={e => setSettings({ ...settings, electricity: +e.target.value })} />
-                  </div>
-                  <div className="input-group">
-                    <label>Prezzo Diesel (€/L)</label>
-                    <input type="number" step="0.01" value={settings.diesel} onChange={e => setSettings({ ...settings, diesel: +e.target.value })} />
-                  </div>
-                  <div className="input-group">
-                    <label>Consumo Termico (km/L)</label>
-                    <input type="number" step="0.1" value={settings.diesel_km_l} onChange={e => setSettings({ ...settings, diesel_km_l: +e.target.value })} />
-                  </div>
-                  <button className="btn-save" onClick={saveSettings}>Salva Configurazione</button>
+            {/* TAB: TELEMETRIA & NAVIGAZIONE */}
+            {activeTab === 'telemetria' && (
+              <div className="dashboard-grid">
+                <div className="metrics-row">
+                  <MetricCard title="Autonomia Stimata" value={dash?.range_km != null ? Math.round(dash.range_km) + ' km' : '—'} icon="🔋" />
+                  <MetricCard title="Odometro Totale" value={dash?.odometer_km != null ? Math.round(dash.odometer_km).toLocaleString() + ' km' : '—'} icon="🛣️" />
+                  <MetricCard title="Velocità Istantanea" value={dash?.speed_kmh != null ? Math.round(dash.speed_kmh) + ' km/h' : '0 km/h'} icon="🚀" />
+                  <MetricCard title="Stato Marcia" value={dash?.shift_state || 'P'} icon="⚙️" highlight={true} />
                 </div>
-              )}
-            </div>
+
+                <div className="glass-panel full-width mt-4">
+                  <div className="panel-header">
+                    <h3>🧭 Navigazione Attiva</h3>
+                    <span className="live-badge">LIVE</span>
+                  </div>
+                  {dash?.navigation && Object.keys(dash.navigation).length ? (
+                    <pre className="code-box">{JSON.stringify(dash.navigation, null, 2)}</pre>
+                  ) : (
+                    <div className="empty-state-box">
+                      <p>Nessuna destinazione attiva al momento.</p>
+                      <span>La rotta e le indicazioni appariranno qui automaticamente durante il viaggio.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: COSTI ED ENERGIA */}
+            {activeTab === 'costi' && (
+              <div className="glass-panel full-width">
+                <div className="panel-header">
+                  <h3>⚡ Parametri di Calcolo Costi</h3>
+                  <span className="auto-loc-badge">📍 GPS Dinamico</span>
+                </div>
+                {settings && (
+                  <div className="settings-form" style={{ maxWidth: '500px' }}>
+                    <div className="input-group">
+                      <label>Energia Elettrica (€/kWh)</label>
+                      <input type="number" step="0.01" value={settings.electricity} onChange={e => setSettings({ ...settings, electricity: +e.target.value })} />
+                    </div>
+                    <div className="input-group">
+                      <label>Prezzo Diesel (€/L)</label>
+                      <input type="number" step="0.01" value={settings.diesel} onChange={e => setSettings({ ...settings, diesel: +e.target.value })} />
+                    </div>
+                    <div className="input-group">
+                      <label>Consumo Termico (km/L)</label>
+                      <input type="number" step="0.1" value={settings.diesel_km_l} onChange={e => setSettings({ ...settings, diesel_km_l: +e.target.value })} />
+                    </div>
+                    <button className="btn-save" onClick={saveSettings}>Salva Configurazione</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </main>
       )}
