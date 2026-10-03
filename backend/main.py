@@ -115,7 +115,8 @@ async def send_signed_tesla_command(vin: str, token: str, endpoint: str, payload
         
         try:
             if endpoint == "set_charging_amps":
-                response = await api.vehicle.set_charging_amps(
+                # CORREZIONE: Utilizzo di api.vehicles (al plurale)
+                response = await api.vehicles.set_charging_amps(
                     vin, 
                     charging_amps=payload.get("charging_amps")
                 )
@@ -127,7 +128,6 @@ async def send_signed_tesla_command(vin: str, token: str, endpoint: str, payload
             # Pulizia opzionale della chiave temporanea per sicurezza
             if os.path.exists(key_path):
                 os.remove(key_path)
-
 # ============================================================
 # SMART VOLTAGE GOVERNOR
 # ============================================================
