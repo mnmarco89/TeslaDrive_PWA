@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..dependencies import get_current_token
 from ..models import TrackingVehicle, Trip, TripPoint
-from ..services.battery_service import battery_info
+from ..services.battery_service import battery_info, recover_missing_energy
 from ..services.trip_service import capture_lock, expire_trip, finish, iso, serialize
 
 router = APIRouter(prefix="/api/trips", dependencies=[Depends(get_current_token)])
@@ -60,6 +60,7 @@ def list_trips(vin: str, period: str = Query("all", pattern="^(today|week|month|
     tracked(db, vin)
     with capture_lock:
         expire_trip(db, vin)
+        recover_missing_energy(db, vin)
     query = db.query(Trip).filter_by(vin=vin)
     if period != "all":
         query = query.filter(Trip.started_at >= period_start(period))
@@ -80,9 +81,21 @@ def list_trips(vin: str, period: str = Query("all", pattern="^(today|week|month|
 @router.get("/{vin}/{trip_id}")
 def detail(vin: str, trip_id: int, db: Session = Depends(get_db)):
     tracked(db, vin)
+    with capture_lock:
+        recover_missing_energy(db, vin)
     trip = db.query(Trip).filter_by(vin=vin, id=trip_id).first()
     if not trip:
         raise HTTPException(404, "Viaggio non trovato")
     points = db.query(TripPoint).filter_by(trip_id=trip.id).order_by(TripPoint.recorded_at).all()
     return {**serialize(trip), "points": [dict(recorded_at=iso(pt.recorded_at), latitude=pt.latitude,
             longitude=pt.longitude, speed_kmh=pt.speed_kmh, battery=pt.battery, odometer_km=pt.odometer_km) for pt in points]}
+
+
+@router.get("/{vin}/{trip_id}/context")
+def trip_context(vin: str, trip_id: int, db: Session = Depends(get_db)):
+    tracked(db, vin)
+    trip = db.query(Trip).filter_by(vin=vin, id=trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Viaggio non trovato")
+    from ..services.trip_context_service import context
+    return context(db, trip)

@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from ..services.trip_service import capture_lock, expire_trip, iso
 from ..services.cost_service import initial_rate, summarize, serialize_rate
 from .trips import period_start
+from ..services.battery_service import battery_info, recover_missing_energy
 
 router = APIRouter(prefix="/api/costs", dependencies=[Depends(get_current_token)])
 
@@ -27,12 +28,15 @@ def summary(vin: str, period: str = Query("all", pattern="^(today|week|month|all
     with capture_lock:
         initial_rate(db)
         expire_trip(db, vin)
+        recover_missing_energy(db, vin)
         db.commit()
     query = db.query(Trip).filter(Trip.vin == vin, Trip.status != "active")
     if period != "all":
         query = query.filter(Trip.started_at >= period_start(period))
     result = summarize(db, query.all())
     state = db.get(FuelPriceState, vin)
+    result["battery"] = battery_info(db, vin)
+    result["missing_energy_trips"] = sum(t.energy_kwh is None for t in query.all())
     result["fuel_price"] = dict(diesel=state.diesel if state else None,
         updated_at=iso(state.last_success_at) if state else None,
         error=state.error if state else None,

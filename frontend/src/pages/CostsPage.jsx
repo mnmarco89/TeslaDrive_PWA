@@ -66,6 +66,7 @@ export default function CostsPage({ vin, settings, setSettings, onSave }) {
         <MetricCard title="Avresti speso in diesel" value={money(summary?.diesel_cost)} icon="⛽" />
         <MetricCard title="Risparmio stimato" value={money(summary?.saving)} icon="💶" />
       </div>
+      {summary?.missing_energy_trips > 0 && <p className="energy-explanation">{summary?.battery?.effective_capacity_kwh == null ? 'Costo elettrico in attesa della calibrazione automatica: serve una ricarica osservata di almeno 20 punti percentuali. Nessun prezzo va inserito a mano.' : `${summary.missing_energy_trips} viaggi senza dati batteria sufficienti.`}</p>}
       <p className="trip-note">Stime sui viaggi registrati · Risparmio sugli stessi {fmt(summary?.comparable_distance_km, 1)} km.</p><details className="disclosure"><summary>Copertura e metodo di calcolo</summary><div className="disclosure-body"><div className="cost-coverage">
         <p>Elettrico: {fmt(summary?.electricity_distance_km, 1)} km · {summary?.electricity_trips ?? '—'} viaggi con energia e tariffa disponibili.</p>
         <p>Diesel: {fmt(summary?.diesel_distance_km, 1)} km · {summary?.diesel_trips ?? '—'} viaggi con prezzo storico disponibile.</p>

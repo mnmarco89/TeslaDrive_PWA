@@ -172,4 +172,5 @@ def serialize(trip):
                 consumption_kwh_100km=trip.energy_kwh/trip.distance_km*100
                 if trip.energy_kwh is not None and trip.distance_km and trip.distance_km > 0 else None,
                 energy_cost=trip.energy_kwh*trip.tariff if trip.energy_kwh is not None and trip.tariff is not None else None,
+                energy_missing_reason=("Capacità utile non ancora calibrata: serve una ricarica osservata di almeno 20 punti percentuali." if trip.capacity_kwh is None else "Percentuale batteria iniziale o finale non disponibile.") if trip.energy_kwh is None else None,
                 capacity_kwh=trip.capacity_kwh, capacity_source=trip.capacity_source, destination=trip.destination)

@@ -131,3 +131,10 @@ class FuelPriceState(Base):
     city = Column(String)
     dataset_date = Column(String)
     reported_at = Column(String)
+
+
+class TripContext(Base):
+    __tablename__ = "telemetry_trip_context"
+    trip_id = Column(Integer, ForeignKey("telemetry_trips.id"), primary_key=True)
+    updated_at = Column(DateTime)
+    payload = Column(Text)

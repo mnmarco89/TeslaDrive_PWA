@@ -396,3 +396,21 @@ h4 { font-size:13px; margin:16px 0; }
  .home-profile summary { min-height:0; }.home-profile .door-list div { flex-wrap:wrap; }
 }
 @media(max-width:360px) { .account-name { display:none; }.header-account { gap:6px; }.brand { gap:6px; } }
+.energy-explanation { background:#263949; color:#c4dfeb; border-left:3px solid #77d7d0; font-size:12px; line-height:1.6; padding:12px 14px; border-radius:9px; margin:14px 0; }
+.trip-browser { display:grid; grid-template-columns:44px minmax(0,1fr) 44px; gap:8px; margin-bottom:8px; }
+.trip-browser select { width:100%; min-width:0; background:#111e2d; color:var(--text-main); border:1px solid #40526b; border-radius:12px; font-size:12px; padding:8px; min-height:44px; }
+.trip-browser .trip-button { padding:8px; font-size:18px; }
+.trip-load-status { height:22px; color:#99e7df; font-size:11px; }
+.trip-detail { overflow-anchor:none; }.trip-detail-loading { opacity:.65; }
+.trip-history > summary { cursor:pointer; font-size:13px; font-weight:600; padding:14px 0; }
+.trip-history-list { max-height:550px; overflow:auto; padding:3px; overscroll-behavior:contain; }
+.trip-context { margin-top:18px; padding-top:4px; border-top:1px solid var(--border-color); min-height:80px; }
+.context-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.context-metrics span { padding:12px; background:#101925; border-radius:12px; }
+.context-metrics small { display:block; color:var(--text-muted); font-size:10px; margin-bottom:8px; }
+.context-metrics strong { font-size:17px; }.trip-context a { color:#99e7df; }
+.elevation-chart { width:100%; height:140px; background:#101925; border-radius:12px; margin-top:10px; }
+.elevation-chart text { fill:#a1b1c7; font-size:11px; }
+@media(max-width:900px) { .trip-history { order:-1; max-height:none; overflow:visible; }.trip-history-list { max-height:270px; }.trip-detail { order:0; } }
+@media(max-width:600px) { .context-metrics strong { font-size:14px; }.context-metrics span { padding:10px; }.trip-browser select { font-size:11px; }.trip-detail-title { font-size:12px; } }
+@media(max-width:900px) { .trip-browser { position:sticky; top:0; z-index:1001; background:#141d2b; padding:8px 0; } }

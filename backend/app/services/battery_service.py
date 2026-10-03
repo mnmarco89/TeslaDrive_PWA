@@ -68,3 +68,22 @@ def record_charging_sample(db, vin, data):
         _finish(db, state)
     state.last_sample_at = at
     db.flush()
+
+
+def recover_missing_energy(db, vin):
+    """Fill missing estimates once; preserve known energy and historical tariffs."""
+    from ..models import Trip
+    info = battery_info(db, vin)
+    capacity = info["effective_capacity_kwh"]
+    if capacity is None:
+        return 0
+    candidates = db.query(Trip).filter(Trip.vin == vin, Trip.status != "active",
+        Trip.energy_kwh.is_(None), Trip.capacity_kwh.is_(None),
+        Trip.start_battery.isnot(None), Trip.end_battery.isnot(None)).all()
+    for trip in candidates:
+        trip.capacity_kwh = capacity
+        trip.capacity_source = info["capacity_source"] + "_retrospective"
+        trip.energy_kwh = (trip.start_battery-trip.end_battery)/100*capacity
+    if candidates:
+        db.commit()
+    return len(candidates)
