@@ -6,9 +6,12 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Python Backend
-FROM python:3.13-slim
+# Stage 2: Python Backend (usiamo Python 3.11 per stabilità totale dei moduli binari)
+FROM python:3.11-slim
 WORKDIR /app
+
+# Aggiorna pip per evitare problemi di risoluzione pacchetti
+RUN pip install --no-cache-dir --upgrade pip
 
 # Installa le dipendenze
 COPY backend/requirements.txt .
