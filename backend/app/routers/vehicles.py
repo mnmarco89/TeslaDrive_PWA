@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -32,6 +32,7 @@ def dashboard(vin: str, token: UserToken = Depends(get_current_token), db: Sessi
     vehicle_state = data.get("vehicle_state", {})
     drive_state = data.get("drive_state", {})
     charge_state = data.get("charge_state", {})
+    climate_state = data.get("climate_state", {})
 
     return {
         "battery": charge_state.get("battery_level"),
@@ -50,7 +51,18 @@ def dashboard(vin: str, token: UserToken = Depends(get_current_token), db: Sessi
             if drive_state.get("speed")
             else 0
         ),
-        "shift_state": drive_state.get("shift_state", "P"),
+        "shift_state": drive_state.get("shift_state"),
         "navigation": drive_state.get("active_route_destination"),
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "vehicle_timestamp": vehicle_state.get("timestamp"),
+        "locked": vehicle_state.get("locked"),
+        "doors": {key: vehicle_state.get(key) for key in ("df", "pf", "dr", "pr", "ft", "rt")},
+        "sentry_mode": vehicle_state.get("sentry_mode"),
+        "software_version": vehicle_state.get("car_version"),
+        "tpms": {key: vehicle_state.get(f"tpms_pressure_{key}") for key in ("fl", "fr", "rl", "rr")},
+        "inside_temp": climate_state.get("inside_temp"),
+        "outside_temp": climate_state.get("outside_temp"),
+        "is_climate_on": climate_state.get("is_climate_on"),
+        "charge_limit_soc": charge_state.get("charge_limit_soc"),
+        "charge_port_door_open": charge_state.get("charge_port_door_open"),
     }

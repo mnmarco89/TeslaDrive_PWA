@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
 from app.schema import initialize_database
-from app.routers import auth, charging, settings, system, vehicles, trips, costs
+from app.routers import auth, charging, settings, system, vehicles, trips, costs, home
 
 initialize_database(engine)
 
@@ -39,6 +39,7 @@ app.include_router(charging.router)
 app.include_router(settings.router)
 app.include_router(trips.router)
 app.include_router(costs.router)
+app.include_router(home.router)
 
 # Il frontend compilato viene montato per ultimo per non intercettare /api e /auth.
 if os.path.exists("static"):
