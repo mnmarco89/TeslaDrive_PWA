@@ -5,12 +5,12 @@ export default function Header({ connected, onLogout }) {
         <img src="/logo.png" alt="Shmersla Logo" className="brand-logo-img" />
         <div>
           <h1>Shmersla</h1>
-          <span className="subtitle">Fleet Telemetry & Voltage Control</span>
+          <span className="subtitle">La tua Tesla, a colpo d’occhio</span>
         </div>
       </div>
       {connected && (
         <button className="btn-logout" onClick={onLogout}>
-          Scollega Account
+          Scollega
         </button>
       )}
     </header>

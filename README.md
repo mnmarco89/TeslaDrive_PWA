@@ -195,3 +195,14 @@ Verifica: **33 test backend**, build Vite/PWA e import applicazione superati. Co
 Fonte dati e attribuzione (MIMIT, licenza IODL 2.0):
 https://www.mimit.gov.it/it/open-data/elenco-dataset/carburanti-prezzi-praticati-e-anagrafica-degli-impianti
 https://www.mimit.gov.it/images/stories/documenti/Metadati_prezzi_carburanti_20260128.pdf
+
+
+## Interfaccia compatta e percorsi su mappa
+
+Questa versione aggiorna la grafica con schede blu scuro, accenti turchesi, indicatore circolare della batteria e icone SVG. Su telefono le tre sezioni Ricarica, Percorsi e Costi si aprono dalla barra fissa inferiore. Le spiegazioni, la configurazione della registrazione e lo storico prezzi sono espandibili; i riepiloghi mensili diventano schede leggibili senza scorrimento orizzontale.
+
+In Percorsi viene selezionato automaticamente il primo viaggio del periodo; selezionare un altro viaggio nello storico aggiorna la mappa. Sono visualizzati i punti GPS effettivamente registrati e gli indicatori di partenza e arrivo. Il comando Inquadra percorso ripristina l'inquadratura; il passaggio fra dimensioni dello schermo riadatta la mappa. La cartografia OpenStreetMap richiede una connessione e, se irraggiungibile, compare un avviso mantenendo la traccia disponibile.
+
+Per verificare la registrazione sul proprio veicolo: autorizzare il permesso posizione Tesla, lasciare il server attivo, percorrere un breve tragitto e parcheggiare; aprire Percorsi e selezionare il viaggio. Non vengono ricostruiti i viaggi precedenti all'attivazione. Una sospensione del server o dati Tesla mancanti possono produrre percorsi parziali. Le stime dei costi mantengono le tariffe storiche dei viaggi.
+
+Verifiche: build frontend/PWA completata; 33 test backend superati; prove browser con dati simulati per selezione della mappa, filtri, salvataggi, limiti di corrente 10–20 A e layout a 320, 390, 768 e 1360 px. La cartografia esterna non è stata verificata nell'ambiente di prova. Nessuna modifica manuale al database richiesta per l'aggiornamento.

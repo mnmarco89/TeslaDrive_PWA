@@ -77,34 +77,34 @@ export default function TelemetryPage({ vin, dash }) {
   return (
     <div className="dashboard-grid">
       <div className="metrics-row">
-        <MetricCard title="Autonomia stimata" value={dash?.range_km != null ? `${fmt(dash.range_km, 0)} km` : '—'} icon="🔋" />
-        <MetricCard title="Odometro totale" value={dash?.odometer_km != null ? `${fmt(dash.odometer_km, 0)} km` : '—'} icon="🛣️" />
+        <MetricCard title="Autonomia" value={dash?.range_km != null ? `${fmt(dash.range_km, 0)} km` : '—'} icon="🔋" />
+        <MetricCard title="Chilometri totali" value={dash?.odometer_km != null ? `${fmt(dash.odometer_km, 0)} km` : '—'} icon="🛣️" />
         <MetricCard title="Velocità" value={`${fmt(dash?.speed_kmh ?? 0, 0)} km/h`} icon="🚀" />
-        <MetricCard title="Destinazione attiva" value={typeof dash?.navigation === 'string' ? dash.navigation : '—'} icon="🧭" />
+        <MetricCard title="Destinazione" value={typeof dash?.navigation === 'string' ? dash.navigation : '—'} icon="🧭" />
       </div>
       <section className="glass-panel full-width">
-        <div className="panel-header"><h3>🧭 Telemetria e percorsi</h3><span className="live-badge">{tracking?.enabled ? 'ATTIVA' : 'IN PAUSA'}</span></div>
-        <form onSubmit={save} className="trip-settings">
+        <div className="panel-header"><h3>I tuoi percorsi</h3><span className="live-badge">{tracking?.enabled ? 'ATTIVA' : 'IN PAUSA'}</span></div>
+        <details className="disclosure"><summary>Registrazione e batteria <span>{tracking?.effective_capacity_kwh != null ? `${fmt(tracking.effective_capacity_kwh)} kWh` : 'Automatico'}</span></summary><div className="disclosure-body"><form onSubmit={save} className="trip-settings">
           <label className="trip-toggle"><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} /> Registra automaticamente i viaggi</label>
-          <label>Capacità utile manuale (opzionale, kWh)<input aria-label="Capacità utile batteria in kWh" type="number" min="1" max="200" step="0.1" placeholder="Automatico dalle ricariche" value={capacity} onChange={e => setCapacity(e.target.value)} /></label>
+          <label>Capacità utile · override opzionale (kWh)<input aria-label="Capacità utile batteria in kWh" type="number" min="1" max="200" step="0.1" placeholder="Automatico dalle ricariche" value={capacity} onChange={e => setCapacity(e.target.value)} /></label>
           <button type="submit" className="trip-button" disabled={saving}>{saving ? 'Salvataggio…' : 'Salva'}</button>
         </form>
         <p className="trip-note">{tracking?.status || 'Caricamento stato…'} · Ultimo campione: {tracking?.last_sample_at ? `${date(tracking.last_sample_at)} ${time(tracking.last_sample_at)}` : 'nessuno'}</p>
         <p className="trip-note">Capacità usata per i nuovi viaggi: {tracking?.effective_capacity_kwh != null ? `${fmt(tracking.effective_capacity_kwh)} kWh` : 'in attesa di una ricarica valida'} · {tracking?.capacity_source === 'manual' ? 'Valore manuale' : tracking?.capacity_source === 'charging_estimate' ? `Stima automatica da ${tracking.calibration_sessions} ricariche` : 'Automatico: lascia vuoto il campo manuale e salva'}.</p>
         {tracking?.nominal_capacity_kwh != null && <p className="trip-note">Capacità nominale comunicata da Tesla: {fmt(tracking.nominal_capacity_kwh)} kWh. È mostrata separatamente e non viene usata come capacità utile.</p>}
         <p className="trip-note">La stima automatica richiede una ricarica osservata con aumento di almeno 20 punti percentuali, dati regolari e fine ricarica rilevata. I kWh del viaggio sono stimati dalla variazione di carica: risentono dell’arrotondamento della percentuale e dei servizi di bordo. La capacità si applica ai nuovi viaggi.</p>
-        <p className="trip-note">L’app può essere chiusa, ma il server deve restare attivo. Se Render sospende il servizio o Tesla non invia dati, lo storico può essere incompleto.</p>
+        <p className="trip-note">L’app può essere chiusa, ma il server deve restare attivo. Se Render sospende il servizio o Tesla non invia dati, lo storico può essere incompleto. Sono necessari i permessi posizione Tesla per disegnare i percorsi.</p></div></details>
         {error && <p role="alert" className="trip-error">{error}</p>}
         <div className="trip-filters" aria-label="Periodo dello storico">
           {[['today', 'Oggi'], ['week', 'Settimana'], ['month', 'Mese'], ['all', 'Tutti']].map(([id, label]) => <button key={id} type="button" aria-pressed={period === id} className={`trip-button ${period === id ? 'selected' : ''}`} onClick={() => { setPeriod(id); setPage(0); }}>{label}</button>)}
         </div>
         <div className="metrics-row trip-summary">
-          <MetricCard title="Viaggi nel periodo" value={fmt(summary?.trips, 0)} icon="🚗" />
-          <MetricCard title="Distanza registrata" value={`${fmt(summary?.distance_km)} km`} icon="🛣️" />
-          <MetricCard title="Energia stimata disponibile" value={`≈ ${fmt(summary?.energy_kwh)} kWh`} icon="⚡" />
-          <MetricCard title="Consumo medio stimato" value={`≈ ${fmt(summary?.consumption_kwh_100km)} kWh/100 km`} icon="🔋" />
+          <MetricCard title="Viaggi" value={fmt(summary?.trips, 0)} icon="🚗" />
+          <MetricCard title="Distanza" value={`${fmt(summary?.distance_km)} km`} icon="🛣️" />
+          <MetricCard title="Energia stimata" value={`≈ ${fmt(summary?.energy_kwh)} kWh`} icon="⚡" />
+          <MetricCard title="Consumo stimato" value={`≈ ${fmt(summary?.consumption_kwh_100km)} kWh/100 km`} icon="🔋" />
         </div>
-        <p className="trip-note">Energia disponibile per {summary?.energy_trips ?? 0} di {summary?.trips ?? 0} viaggi · Costo energia stimato: {summary?.cost == null ? '—' : `≈ ${fmt(summary.cost, 2)} €`}. I costi usano la tariffa salvata all’inizio di ciascun viaggio.</p>
+        <p className="trip-note">Energia disponibile per {summary?.energy_trips ?? 0} di {summary?.trips ?? 0} viaggi · Costo energia stimato: {summary?.cost == null ? '—' : `≈ ${fmt(summary.cost, 2)} €`} · Tariffe del viaggio.</p>
         <div className="trip-layout">
           <div className="trip-history">
             <h4>Storico viaggi</h4>
@@ -119,7 +119,7 @@ export default function TelemetryPage({ vin, dash }) {
           </div>
           <div className="trip-detail">
             {detail ? <>
-              <h4>{date(detail.started_at)} · {time(detail.started_at)} — {detail.ended_at ? time(detail.ended_at) : 'in corso'}</h4>
+              <h4 className="trip-detail-title">{date(detail.started_at)} · {time(detail.started_at)} — {detail.ended_at ? time(detail.ended_at) : 'in corso'}</h4>
               {detail.partial && <p className="trip-note">Percorso parziale: partenza già in marcia o interruzione della raccolta. La mappa unisce solo i punti ricevuti.</p>}
               <TripMap key={detail.id} points={detail.points} />
               <div className="trip-detail-metrics">
@@ -127,12 +127,12 @@ export default function TelemetryPage({ vin, dash }) {
                 <span><strong>{fmt(detail.duration_minutes, 0)} min</strong><small>Durata registrata</small></span>
                 <span><strong>{fmt(detail.start_battery, 0)}% → {fmt(detail.end_battery, 0)}%</strong><small>Batteria</small></span>
                 <span><strong>≈ {fmt(detail.energy_kwh)} kWh</strong><small>Energia netta stimata</small></span>
-                <span><strong>≈ {fmt(detail.consumption_kwh_100km)} kWh/100 km</strong><small>Consumo medio stimato</small></span>
+                <span><strong>≈ {fmt(detail.consumption_kwh_100km)} kWh/100 km</strong><small>Consumo stimato</small></span>
                 <span><strong>{detail.energy_cost == null ? '—' : `≈ ${fmt(detail.energy_cost, 2)} €`}</strong><small>Costo energia stimato</small></span>
               </div>
-              <p className="trip-note">Capacità del viaggio: {fmt(detail.capacity_kwh)} kWh · {detail.capacity_source === 'charging_estimate' ? 'stima automatica dalle ricariche' : detail.capacity_source === 'manual' ? 'valore manuale' : 'non disponibile'}</p>
+              <details className="disclosure"><summary>Dettagli del viaggio</summary><div className="disclosure-body"><p className="trip-note">Capacità del viaggio: {fmt(detail.capacity_kwh)} kWh · {detail.capacity_source === 'charging_estimate' ? 'stima automatica dalle ricariche' : detail.capacity_source === 'manual' ? 'valore manuale' : 'non disponibile'}</p>
               <p className="trip-note">{detail.points.length} campioni · Orari Europe/Rome · Verde: primo punto · Arancione: ultimo punto</p>
-              {detail.destination && <p>Destinazione: {detail.destination}</p>}
+              {detail.destination && <p>Destinazione: {detail.destination}</p>}</div></details>
             </> : <div className="empty-state-box"><p>{selectedId ? 'Caricamento percorso…' : 'Seleziona un viaggio per vedere la mappa e i consumi.'}</p></div>}
           </div>
         </div>

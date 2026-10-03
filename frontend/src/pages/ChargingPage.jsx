@@ -9,11 +9,11 @@ export default function ChargingPage({
   return (
     <section className="glass-panel full-width">
       <div className="panel-header">
-        <h3>🔌 Gestione Ricarica & Smart Voltage Governor</h3>
+        <h3>Ricarica</h3>
         <span className={`live-badge ${charging?.charging_state === 'Charging' ? 'active-charging' : ''}`}>
           {charging?.charging_state === 'Charging'
             ? 'IN CARICA'
-            : (charging?.charging_state || 'STANDBY')}
+            : ({ Complete: 'COMPLETA', Stopped: 'FERMA', Disconnected: 'SCOLLEGATA' }[charging?.charging_state] || 'IN ATTESA')}
         </span>
       </div>
 
@@ -41,9 +41,10 @@ export default function ChargingPage({
         </div>
 
         <div className="charge-control-slider-box">
-          <label>Limitazione Amperaggio ({targetAmps} A)</label>
+          <label>Corrente di ricarica ({targetAmps} A)</label>
           <div className="slider-row">
             <input
+              aria-label="Corrente di ricarica"
               type="range"
               min="10"
               max="20"
@@ -64,15 +65,15 @@ export default function ChargingPage({
 
       <div className="voltage-guard-box">
         <div className="guard-info">
-          <span>🛡️ Protezione Automatica Voltaggio (Target 207V - 220V)</span>
+          <span>Protezione tensione</span>
           <small>
-            Riduce gli Ampere se la tensione scende a 207V e li rialza quando
-            si stabilizza sopra i 218V.
+            Riduce la corrente sotto 208 V, la rialza da 218 V.
           </small>
         </div>
         <label className="switch">
           <input
             type="checkbox"
+            aria-label="Protezione automatica tensione"
             checked={settings?.voltage_protection === 1}
             onChange={event => onVoltageProtectionChange(event.target.checked)}
           />
