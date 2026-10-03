@@ -23,16 +23,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('ricarica');
 
   const loadVehicleData = async vehicleVin => {
-    const [dashboardData, chargingData] = await Promise.all([
+    const [dashboardResult, chargingResult] = await Promise.allSettled([
       api(`/api/dashboard/${vehicleVin}`),
       api(`/api/charging/${vehicleVin}`),
     ]);
-
-    setDash(dashboardData);
-    setCharging(chargingData);
-    if (chargingData.charge_amps) {
-      setTargetAmps(Math.min(20, Math.max(10, chargingData.charge_amps)));
+    if (dashboardResult.status === 'fulfilled') setDash(dashboardResult.value);
+    if (chargingResult.status === 'fulfilled') {
+      const chargingData = chargingResult.value;
+      setCharging(chargingData);
+      if (chargingData.charge_amps) setTargetAmps(Math.min(20, Math.max(10, chargingData.charge_amps)));
     }
+    const failure = [dashboardResult, chargingResult].find(r => r.status === 'rejected');
+    if (failure) throw failure.reason;
   };
 
   const load = async () => {
@@ -52,7 +54,7 @@ export default function App() {
       if (selectedVin) {
         setVin(selectedVin);
         localStorage.setItem('shmersla_vin', selectedVin);
-        await loadVehicleData(selectedVin);
+        try { await loadVehicleData(selectedVin); } catch (err) { setError(err.message); }
       }
 
       setSettings(await api('/api/settings'));

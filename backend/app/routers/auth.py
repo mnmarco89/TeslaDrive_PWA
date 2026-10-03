@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..config import TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI
+from ..config import TESLA_CLIENT_ID, TESLA_CLIENT_SECRET, TESLA_REDIRECT_URI, TESLA_AUDIENCE
 from ..database import get_db
 from ..models import UserToken
 
@@ -25,7 +25,7 @@ def tesla_start_login():
         f"client_id={TESLA_CLIENT_ID}&"
         f"redirect_uri={TESLA_REDIRECT_URI}&"
         f"scope={requests.utils.quote(scopes)}&"
-        f"state={state}"
+        f"state={state}&prompt_missing_scopes=true&require_requested_scopes=true"
     )
     return RedirectResponse(url=auth_url)
 
@@ -33,14 +33,16 @@ def tesla_start_login():
 @router.get("/auth/tesla/callback")
 def tesla_callback(code: str, db: Session = Depends(get_db)):
     response = requests.post(
-        "https://auth.tesla.com/oauth2/v3/token",
-        json={
+        "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token",
+        data={
             "grant_type": "authorization_code",
             "client_id": TESLA_CLIENT_ID,
             "client_secret": TESLA_CLIENT_SECRET,
             "code": code,
             "redirect_uri": TESLA_REDIRECT_URI,
+            "audience": TESLA_AUDIENCE,
         },
+        timeout=20,
     )
     if response.status_code != 200:
         raise HTTPException(

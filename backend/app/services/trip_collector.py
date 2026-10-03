@@ -35,9 +35,9 @@ def _request(db, path, params=None):
     response = requests.get(TESLA_AUDIENCE + path, headers=authorization_headers(token.access_token),
                             params=params, timeout=20)
     if response.status_code == 401 and token.refresh_token:
-        refreshed = requests.post("https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token", json={
+        refreshed = requests.post("https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token", data={
             "grant_type": "refresh_token", "client_id": TESLA_CLIENT_ID,
-            "client_secret": TESLA_CLIENT_SECRET, "refresh_token": token.refresh_token}, timeout=20)
+            "refresh_token": token.refresh_token}, timeout=20)
         if refreshed.status_code == 200:
             payload = refreshed.json()
             token.access_token = payload["access_token"]
@@ -57,6 +57,16 @@ def fetch_sample(db, vin):
             return cached[1]
         response = _request(db, f"/api/1/vehicles/{vin}/vehicle_data", params={
             "endpoints": "location_data;drive_state;charge_state;vehicle_state"})
+        location_unavailable = False
+        if response is not None and response.status_code == 403:
+            try:
+                missing_scope = response.json().get("error") == "Unauthorized missing scopes"
+            except (ValueError, AttributeError):
+                missing_scope = False
+            if missing_scope:
+                response = _request(db, f"/api/1/vehicles/{vin}/vehicle_data", params={
+                    "endpoints": "drive_state;charge_state;vehicle_state"})
+                location_unavailable = True
         if response is None:
             raise ValueError("Collega nuovamente l’account Tesla")
         if response.status_code != 200:
@@ -70,6 +80,8 @@ def fetch_sample(db, vin):
                         408: "Auto non raggiungibile", 429: "Limite API Tesla raggiunto: raccolta in pausa"}
             raise ValueError(messages.get(response.status_code, f"API Tesla: HTTP {response.status_code}"))
         data = response.json().get("response") or {}
+        if location_unavailable:
+            data["_location_unavailable"] = True
         _cache[vin] = (time.monotonic(), data)
     record_sample(db, vin, data)
     return data

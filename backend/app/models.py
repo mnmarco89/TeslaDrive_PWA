@@ -37,7 +37,7 @@ class TrackingVehicle(Base):
 
 
 class Trip(Base):
-    __tablename__ = "trips"
+    __tablename__ = "telemetry_trips"
     id = Column(Integer, primary_key=True)
     vin = Column(String, index=True, nullable=False)
     started_at = Column(DateTime, index=True, nullable=False)
@@ -50,6 +50,7 @@ class Trip(Base):
     start_battery = Column(Float)
     end_battery = Column(Float)
     capacity_kwh = Column(Float)
+    capacity_source = Column(String)
     tariff = Column(Float)
     destination = Column(Text)
     distance_km = Column(Float)
@@ -59,13 +60,39 @@ class Trip(Base):
 
 
 class TripPoint(Base):
-    __tablename__ = "trip_points"
+    __tablename__ = "telemetry_trip_points"
     __table_args__ = (UniqueConstraint("trip_id", "recorded_at"),)
     id = Column(Integer, primary_key=True)
-    trip_id = Column(Integer, ForeignKey("trips.id"), index=True, nullable=False)
+    trip_id = Column(Integer, ForeignKey("telemetry_trips.id"), index=True, nullable=False)
     recorded_at = Column(DateTime, nullable=False)
     latitude = Column(Float)
     longitude = Column(Float)
     speed_kmh = Column(Float)
     battery = Column(Float)
     odometer_km = Column(Float)
+
+
+class BatteryCalibration(Base):
+    __tablename__ = "telemetry_battery_calibration"
+    vin = Column(String, primary_key=True)
+    started_at = Column(DateTime)
+    last_sample_at = Column(DateTime)
+    start_soc = Column(Float)
+    start_energy = Column(Float)
+    last_soc = Column(Float)
+    last_energy = Column(Float)
+    nominal_kwh = Column(Float)
+
+
+class BatteryObservation(Base):
+    __tablename__ = "telemetry_battery_observations"
+    id = Column(Integer, primary_key=True)
+    vin = Column(String, index=True, nullable=False)
+    recorded_at = Column(DateTime, nullable=False)
+    capacity_kwh = Column(Float, nullable=False)
+    soc_delta = Column(Float, nullable=False)
+
+
+class AppMigration(Base):
+    __tablename__ = "telemetry_migrations"
+    name = Column(String, primary_key=True)

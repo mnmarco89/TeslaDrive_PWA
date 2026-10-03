@@ -7,9 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
+from app.schema import initialize_database
 from app.routers import auth, charging, settings, system, vehicles, trips
 
-Base.metadata.create_all(bind=engine)
+initialize_database(engine)
 
 @asynccontextmanager
 async def lifespan(app):

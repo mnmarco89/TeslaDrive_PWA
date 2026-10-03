@@ -106,6 +106,8 @@ def record_sample(db, vin, data):
         vehicle = db.get(TrackingVehicle, vin)
         if vehicle is None or not vehicle.enabled:
             return
+        from .battery_service import record_charging_sample, battery_info
+        record_charging_sample(db, vin, data)
         sample = sample_from_data(data)
         if not sample:
             vehicle.last_status = "Dati assenti o non recenti"
@@ -121,10 +123,11 @@ def record_sample(db, vin, data):
         parked = sample["shift"] == "P" or (sample["shift"] is None and sample["speed_kmh"] == 0)
         if moving and trip is None:
             settings = db.query(UserSettingsDB).first()
+            battery = battery_info(db, vin)
             trip = Trip(vin=vin, started_at=at, last_sample_at=at,
                         partial=previous_at is None or (at-previous_at).total_seconds() > MAX_GAP_SECONDS,
                         start_odometer_km=sample["odometer_km"], start_battery=sample["battery"],
-                        capacity_kwh=vehicle.capacity_kwh,
+                        capacity_kwh=battery["effective_capacity_kwh"], capacity_source=battery["capacity_source"],
                         tariff=number(settings.electricity) if settings else None,
                         destination=sample["destination"] if isinstance(sample["destination"], str) else None)
             db.add(trip)
@@ -146,6 +149,8 @@ def record_sample(db, vin, data):
                 finish(db, trip, "completed", trip.parked_since)
         vehicle.last_sample_at = at
         vehicle.last_status = "Registrazione in corso" if trip and trip.status == "active" else "Auto ferma"
+        if data.get("_location_unavailable"):
+            vehicle.last_status += " · GPS non autorizzato: ricollega Tesla"
         db.commit()
 
 
@@ -163,4 +168,4 @@ def serialize(trip):
                 consumption_kwh_100km=trip.energy_kwh/trip.distance_km*100
                 if trip.energy_kwh is not None and trip.distance_km and trip.distance_km > 0 else None,
                 energy_cost=trip.energy_kwh*trip.tariff if trip.energy_kwh is not None and trip.tariff is not None else None,
-                capacity_kwh=trip.capacity_kwh, destination=trip.destination)
+                capacity_kwh=trip.capacity_kwh, capacity_source=trip.capacity_source, destination=trip.destination)

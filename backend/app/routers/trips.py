@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..dependencies import get_current_token
 from ..models import TrackingVehicle, Trip, TripPoint
+from ..services.battery_service import battery_info
 from ..services.trip_service import capture_lock, expire_trip, finish, iso, serialize
 
 router = APIRouter(prefix="/api/trips", dependencies=[Depends(get_current_token)])
@@ -26,7 +27,7 @@ class TrackingSettings(BaseModel):
 @router.get("/{vin}/settings")
 def get_settings(vin: str, db: Session = Depends(get_db)):
     v = tracked(db, vin)
-    return dict(enabled=v.enabled, capacity_kwh=v.capacity_kwh, last_sample_at=iso(v.last_sample_at), status=v.last_status)
+    return dict(enabled=v.enabled, **battery_info(db, vin), last_sample_at=iso(v.last_sample_at), status=v.last_status)
 
 
 @router.put("/{vin}/settings")
