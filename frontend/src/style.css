@@ -449,3 +449,58 @@ h4 { font-size:13px; margin:16px 0; }
 .charging-history { margin-top:18px; }
 .charge-day:focus-visible { outline:2px solid #9af0d7; outline-offset:2px; border-radius:5px; }
 @media(max-width:600px) { .capacity-chart { height:auto; display:block; }.capacity-chart text { font-size:18px; } }
+/* Refined home: compact map, clear identity, tactile disclosure rows. */
+.compact-vehicle-hero { padding:18px 24px; background:linear-gradient(120deg,#232d3c,#171d28); border-color:#ffffff12; box-shadow:0 8px 30px #00000012; }
+.compact-vehicle-hero .label-top { display:block; color:#97a5b8; font-size:9px; letter-spacing:1.6px; }
+.compact-vehicle-hero .car-info h2 { display:block; margin:5px 0 8px; font-size:27px; font-weight:650; letter-spacing:-.8px; }
+.vehicle-given-name { color:#99a8bb; font-size:11px; margin:0 0 8px; }
+.compact-vehicle-hero .car-info { min-width:0; }
+.compact-vehicle-hero .select-wrapper select { min-height:32px; background:#ffffff08; border-color:#ffffff14; border-radius:9px; font-size:11px; color:#b6c3d5; }
+.compact-vehicle-hero .battery-display { flex-direction:column; align-items:center; background:#ffffff06; border:1px solid #ffffff0c; border-radius:18px; padding:14px 19px; gap:5px; }
+.compact-vehicle-hero .battery-value { font-size:30px; font-weight:650; letter-spacing:-1px; }
+.compact-vehicle-hero .battery-label { display:block; margin:0; color:#97a5b8; font-size:10px; }
+.home-refreshed .glass-panel { border-color:#ffffff10; box-shadow:0 12px 36px #00000018; border-radius:24px; }
+.home-refreshed .home-welcome h2 { font-weight:650; letter-spacing:-.8px; }
+.home-cockpit { grid-template-columns:1.15fr 1fr; background:radial-gradient(ellipse at 15% 10%,#24334588,transparent 60%),#151d29; gap:24px; }
+.home-cockpit .home-location { border-color:#ffffff0e; border-radius:0; box-shadow:none; }
+.home-cockpit .home-location .trip-map { height:165px; border-radius:17px; }
+.home-car-summary .vehicle-diagram svg { height:185px; }
+.home-car-summary .vehicle-diagram { width:120px; }
+.home-refreshed .panel-header h3 { font-size:18px; font-weight:650; letter-spacing:-.3px; }
+.home-refreshed .trip-button { background:#ffffff07; border-color:#ffffff12; border-radius:12px; transition:background .18s,transform .18s; }
+.home-refreshed .trip-button:hover { background:#ffffff12; }
+.home-command-deck .quick-action { background:#ffffff04; border-color:#ffffff12; border-radius:17px; transition:background .18s,transform .18s; }
+.home-command-deck .quick-action svg { color:#94bbf6; }
+.home-command-deck .quick-action:hover:not(:disabled) { background:#ffffff0c; border-color:#ffffff22; transform:translateY(-1px); }
+.home-command-deck .quick-action.accent-action { background:#0a84ff20; border-color:#0a84ff35; }
+.home-refreshed .disclosure > summary { display:flex; align-items:center; gap:13px; list-style:none; border-radius:14px; transition:background .18s; color:#e5edf8; }
+.home-refreshed .disclosure > summary::-webkit-details-marker { display:none; }
+.home-refreshed .disclosure > summary::marker { content:''; }
+.home-refreshed .disclosure > summary:hover { background:#ffffff04; }
+.home-refreshed .disclosure summary span { float:none; font-weight:inherit; }
+.home-refreshed .expand-icon { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:36px; height:36px; color:#9dc5ff; background:#0a84ff16; border:1px solid #0a84ff20; border-radius:11px; }
+.home-refreshed .expand-icon svg { width:19px; height:19px; }
+.home-refreshed .expand-copy { display:flex; flex:1; flex-direction:column; gap:5px; min-width:0; color:inherit; }
+.home-refreshed .expand-copy strong { font-weight:550; font-size:13px; line-height:1.4; }
+.home-refreshed .expand-copy small { font-size:10px; color:#899bb2; font-weight:400; line-height:1.5; }
+.home-refreshed .expand-indicator { display:grid; place-items:center; width:28px; height:28px; flex-shrink:0; color:#9dc5ff; border-radius:50%; background:#0a84ff18; transition:transform .2s,background .2s; }
+.home-refreshed .expand-indicator::after { content:'+'; font-size:20px; font-weight:400; }
+.home-refreshed details[open] > summary .expand-indicator { transform:rotate(45deg); background:#0a84ff30; }
+.home-refreshed details[open] > summary .expand-icon { background:#0a84ff28; }
+.home-details-group .disclosure > summary { padding:15px 2px; min-height:74px; }
+.home-extra-controls > summary { padding:15px 2px 2px; }
+.home-refreshed .home-profile .disclosure-body { padding:8px 2px 12px; }
+.home-refreshed .home-details-group .disclosure { border-color:#ffffff0b; }
+@media(max-width:1000px) and (min-width:601px) { .home-cockpit { grid-template-columns:1fr 1fr; gap:16px; }.home-car-summary .vehicle-diagram { width:100px; }.home-car-summary { gap:10px; } }
+@media(max-width:600px) {
+ .compact-vehicle-hero { padding:15px 17px; gap:12px; border-radius:21px; }
+ .compact-vehicle-hero .car-info h2 { font-size:24px; margin:5px 0 8px; }
+ .compact-vehicle-hero .battery-display { padding:12px 14px; border-radius:16px; }.compact-vehicle-hero .battery-value { font-size:26px; }
+ .compact-vehicle-hero .select-wrapper select { max-width:185px; padding:7px 22px 7px 8px; font-size:10px; }
+ .home-cockpit { grid-template-columns:1fr; padding:17px; gap:16px; }
+ .home-cockpit .home-location { padding-top:15px; }.home-cockpit .home-location .trip-map { height:145px; }
+ .home-car-summary .vehicle-diagram { width:95px; }.home-car-summary .vehicle-diagram svg { height:150px; }
+ .home-refreshed .expand-copy strong { font-size:12px; }.home-refreshed .expand-copy small { font-size:10px; }
+ .home-refreshed .disclosure > summary { gap:10px; }.home-refreshed .expand-icon { width:32px; height:32px; border-radius:10px; }
+ .home-refreshed .home-details-group { padding:2px 15px; }
+}

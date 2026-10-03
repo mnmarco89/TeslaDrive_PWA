@@ -56,7 +56,7 @@ def fetch_sample(db, vin):
         if cached and time.monotonic()-cached[0] < DRIVING_INTERVAL:
             return cached[1]
         response = _request(db, f"/api/1/vehicles/{vin}/vehicle_data", params={
-            "endpoints": "location_data;drive_state;charge_state;vehicle_state;climate_state"})
+            "endpoints": "location_data;drive_state;charge_state;vehicle_state;climate_state;vehicle_config"})
         location_unavailable = False
         if response is not None and response.status_code == 403:
             try:
@@ -65,7 +65,7 @@ def fetch_sample(db, vin):
                 missing_scope = False
             if missing_scope:
                 response = _request(db, f"/api/1/vehicles/{vin}/vehicle_data", params={
-                    "endpoints": "drive_state;charge_state;vehicle_state;climate_state"})
+                    "endpoints": "drive_state;charge_state;vehicle_state;climate_state;vehicle_config"})
                 location_unavailable = True
         if response is None:
             raise ValueError("Collega nuovamente l’account Tesla")

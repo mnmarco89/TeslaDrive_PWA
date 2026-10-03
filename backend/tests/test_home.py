@@ -83,7 +83,7 @@ class HomeTests(unittest.TestCase):
     def test_dashboard_preserves_unknown_and_maps_doors(self):
         self.login()
         data = {'vehicle_state':{'df':0,'pr':1,'locked':False,'tpms_pressure_fl':2.9,'car_version':'2026.1'},
-                'climate_state':{'inside_temp':22,'outside_temp':0,'is_climate_on':False}}
+                'climate_state':{'inside_temp':22,'outside_temp':0,'is_climate_on':False}, 'vehicle_config':{'car_type':'modely'}}
         with patch.object(vehicles,'fetch_sample', return_value=data):
             result = self.client.get('/api/dashboard/A').json()
         self.assertIsNone(result['doors']['pf'])
@@ -92,6 +92,7 @@ class HomeTests(unittest.TestCase):
         self.assertEqual(result['outside_temp'],0)
         self.assertEqual(result['tpms']['fl'],2.9)
         self.assertIsNone(result['shift_state'])
+        self.assertEqual(result['car_type'],'modely')
 
     def test_invalidation_preserves_other_vehicle(self):
         trip_collector._cache['A']=(0,{'locked':True})

@@ -37,6 +37,7 @@ def dashboard(vin: str, token: UserToken = Depends(get_current_token), db: Sessi
     from ..services.location_service import location
     return {
         "location": location(db, vin),
+        "car_type": (data.get("vehicle_config") or {}).get("car_type"),
         "battery": charge_state.get("battery_level"),
         "range_km": (
             charge_state.get("battery_range", 0) * 1.60934
