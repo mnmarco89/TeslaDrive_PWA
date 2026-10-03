@@ -1096,4 +1096,4 @@ if os.path.exists("static"):
             html=True
         ),
         name="static"
-    )h
+    )
