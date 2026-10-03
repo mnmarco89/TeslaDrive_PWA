@@ -163,8 +163,8 @@ def check_and_protect_voltage(vin: str, token: UserToken, charge_state: dict, db
                 print("Errore invio comando riduzione ampere:", e)
 
         # Tensione alta
-        elif voltage >= 218 and current_amps < 32:
-            new_amps = min(32, current_amps + 1)
+        elif voltage >= 218 and current_amps < 20:
+            new_amps = min(20, current_amps + 1)
             try:
                 asyncio.run(send_signed_tesla_command(
                     vin,
@@ -380,8 +380,8 @@ async def set_charging_amps(vin: str, payload: dict, token: UserToken = Depends(
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Amperaggio non valido")
 
-    if amps < 5 or amps > 32:
-        raise HTTPException(status_code=400, detail="L'amperaggio deve essere compreso tra 5 e 32 A")
+    if amps < 10 or amps > 20:
+        raise HTTPException(status_code=400, detail="L'amperaggio deve essere compreso tra 10 e 20 A")
 
     try:
         response = await send_signed_tesla_command(

@@ -201,7 +201,7 @@ function App() {
                     <label>Limitazione Amperaggio ({targetAmps} A)</label>
                     <div className="slider-row">
                       <input 
-                        type="range" min="5" max="32" step="1" 
+                        type="range" min="10" max="20" step="1" 
                         value={targetAmps} 
                         onChange={e => setTargetAmps(+e.target.value)}
                         onMouseUp={e => changeAmps(+e.target.value)}
@@ -210,7 +210,7 @@ function App() {
                       <div className="amp-preset-buttons">
                         <button onClick={() => changeAmps(10)}>10A</button>
                         <button onClick={() => changeAmps(16)}>16A</button>
-                        <button onClick={() => changeAmps(24)}>24A</button>
+                        <button onClick={() => changeAmps(20)}>20A</button>
                       </div>
                     </div>
                   </div>
