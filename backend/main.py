@@ -2,6 +2,7 @@ import os
 import secrets
 import requests
 import asyncio
+import aiohttp
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,12 +12,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from datetime import datetime
 
 # ============================================================
-# CRYPTOGRAPHY E TESLA FLEET API
+# TESLA FLEET API
 # ============================================================
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from tesla_fleet_api import FleetApi
+from tesla_fleet_api import TeslaFleetApi
 
 # ============================================================
 # DATABASE
@@ -90,42 +88,45 @@ def get_current_token(db: Session = Depends(get_db)):
 async def send_signed_tesla_command(vin: str, token: str, endpoint: str, payload: dict):
     """
     Implementazione reale del Vehicle Command Protocol.
-    Utilizza tesla_fleet_api passando l'oggetto crittografico generato da cryptography.
+    Utilizza tesla_fleet_api passando il file della chiave privata.
     """
     private_key_pem = os.getenv("TESLA_PRIVATE_KEY")
     
     if not private_key_pem:
         raise Exception("TESLA_PRIVATE_KEY non configurata sul server. I comandi di ricarica falliranno.")
 
-    # Carichiamo e validiamo esplicitamente la chiave con il modulo cryptography
-    try:
-        private_key = load_pem_private_key(
-            private_key_pem.encode("utf-8"),
-            password=None
+    # Salviamo temporaneamente la chiave in un file, come richiesto dalla libreria
+    key_path = "/tmp/tesla_private_key.pem"
+    with open(key_path, "w") as f:
+        f.write(private_key_pem)
+
+    async with aiohttp.ClientSession() as session:
+        # Inizializza il client API di Tesla corretto
+        api = TeslaFleetApi(
+            access_token=token,
+            session=session,
+            region="eu"
         )
-    except Exception as e:
-        print(f"Errore nella lettura crittografica della chiave PEM: {e}")
-        raise e
+        
+        # Carica la chiave privata crittografica dal file
+        await api.get_private_key(key_path)
 
-    # Inizializziamo l'API Tesla con la chiave privata
-    api = FleetApi(
-        token=token,
-        region="eu",
-        private_key=private_key
-    )
-
-    print(f"Invio comando firmato VCP '{endpoint}' in corso...")
-    
-    try:
-        if endpoint == "set_charging_amps":
-            response = await api.vehicle.set_charging_amps(
-                vin, 
-                charging_amps=payload.get("charging_amps")
-            )
-            return response
-    except Exception as e:
-        print(f"Errore VCP Tesla: {str(e)}")
-        raise e
+        print(f"Invio comando firmato VCP '{endpoint}' in corso...")
+        
+        try:
+            if endpoint == "set_charging_amps":
+                response = await api.vehicle.set_charging_amps(
+                    vin, 
+                    charging_amps=payload.get("charging_amps")
+                )
+                return response
+        except Exception as e:
+            print(f"Errore VCP Tesla: {str(e)}")
+            raise e
+        finally:
+            # Pulizia opzionale della chiave temporanea per sicurezza
+            if os.path.exists(key_path):
+                os.remove(key_path)
 
 # ============================================================
 # SMART VOLTAGE GOVERNOR
