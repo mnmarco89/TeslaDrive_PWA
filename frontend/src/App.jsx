@@ -96,8 +96,10 @@ export default function App() {
         body: JSON.stringify(settings),
       });
       showSuccess('✨ Impostazioni salvate con successo.');
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     }
   };
 
@@ -194,6 +196,8 @@ export default function App() {
 
             {activeTab === 'costi' && (
               <CostsPage
+                key={vin}
+                vin={vin}
                 settings={settings}
                 setSettings={setSettings}
                 onSave={saveSettings}

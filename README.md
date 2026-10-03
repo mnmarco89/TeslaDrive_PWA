@@ -161,3 +161,37 @@ Validazione di questo pacchetto: 22 test backend superati, import dell’app ver
 - Frontend: un errore del cruscotto non scarta una risposta valida della sezione ricarica; lo storico mostra un messaggio di errore invece di restare in caricamento indefinito.
 
 Verifica di questa correzione: 22 test con SQLite isolato, compresi schema legacy intatto, copia idempotente di viaggi/punti compatibili, stima da ricarica, reset contatore, scarto lacune, priorità manuale, capacità nominale separata, fallback scope GPS e parametri OAuth. Import dell’app e build PWA completati. Nessuna modifica effettuata al database remoto e nessuna chiamata live all’auto.
+
+
+## Costi ed Energia — prezzi automatici e confronto storico
+
+Per questo aggiornamento basta fare il deploy del codice mantenendo lo stesso database. Le nuove tabelle `telemetry_cost_rates`, `telemetry_trip_cost_snapshots`, `telemetry_fuel_price_state` vengono create all’avvio senza alterare le tabelle esistenti. Non servono chiavi API aggiuntive o conferme dei prezzi.
+
+### Parametri e prezzi
+
+- **Elettricità:** tariffa fissa €/kWh già configurata, come richiesto. Il costo viaggio è la stima dei kWh netti dalla batteria moltiplicata per la tariffa fotografata all’inizio del viaggio. Non rappresenta la somma delle bollette o degli importi realmente pagati ai caricatori e non include le perdite di ricarica. Il pannello mostra la tariffa configurata in sola lettura.
+- **Diesel:** completamente automatico, da **MIMIT / Osservaprezzi Carburanti**. Si incrociano i dataset pubblici giornalieri dei prezzi e dell’anagrafica impianti e si sceglie il distributore geograficamente più vicino entro 10 km con **Gasolio standard self-service**. Non viene usato il gasolio speciale/premium né il servito. Non viene usato un prezzo manuale o un valore fisso di fallback. Il prezzo è un riferimento di confronto, non un pagamento effettuato né un preventivo in tempo reale.
+- Il dataset MIMIT è pubblicato quotidianamente e rappresenta una fotografia dei prezzi; il pannello mostra distributore, comune, data del dataset e ultimo rilevamento. Il dataset viene tenuto in memoria e scaricato al massimo una volta per giorno Rome, per processo. Il parser usa il separatore `|` introdotto dal MIMIT il 10 febbraio 2026 e supporta anche il precedente `;`.
+- Una posizione GPS recente avvia in background l’aggiornamento del diesel, circa ogni ora. I prezzi uguali non producono righe duplicate; una variazione crea una nuova tariffa per il VIN. Il download non blocca il raccoglitore viaggi. In caso di errore riprova dopo circa 15 minuti e conserva l’ultimo prezzo già rilevato con un avviso. Senza alcun rilevamento valido il prezzo resta sconosciuto. Servono backend attivo, GPS autorizzato e accesso di rete al sito MIMIT; l’auto non viene risvegliata per aggiornare il carburante.
+- Il consumo dell’auto diesel di confronto, in km/L, è l’unico parametro modificabile nella nuova pagina: non è un prezzo e non è deducibile dalla Tesla. Il valore già configurato viene conservato. Ogni nuovo viaggio conserva quel consumo e, se disponibile, il prezzo diesel rilevato al momento.
+
+### Totali
+
+Il pannello comprende totale elettrico stimato in euro, diesel equivalente in euro, differenza a favore dell’elettrico, filtri oggi/settimana/mese/tutti, riepilogo mensile e storico paginato dei prezzi. I dati sono riferiti al veicolo selezionato e ai viaggi terminati; sono inclusi i percorsi parziali con indicazione della loro presenza.
+
+Formule:
+- Elettrico: `kWh netti stimati del viaggio × €/kWh del viaggio`.
+- Diesel: `km del viaggio ÷ km/L memorizzati × €/L del periodo`.
+- Differenza: `diesel − elettrico`, soltanto sui viaggi per cui entrambi i costi sono disponibili. Un valore negativo indica un costo elettrico stimato maggiore.
+
+Ogni totale mostra i km e il numero di viaggi coperti. La differenza non confronta totali riferiti a distanze diverse. I viaggi senza capacità batteria/stima energetica non contribuiscono al totale elettrico; i viaggi precedenti al primo prezzo storico noto non ricevono il prezzo attuale retroattivamente. La tariffa elettrica già fotografata nei vecchi viaggi resta prioritaria. Il costo elettrico dello storico Telemetria continua a usare quella tariffa in euro.
+
+L’API di salvataggio delle impostazioni ora richiede autenticazione e valida i parametri; le letture non cambiano il prezzo diesel né effettuano richieste GPS/carburante. La sola modifica della protezione voltaggio non crea una variazione di tariffa.
+
+Moduli dedicati: `frontend/src/pages/CostsPage.jsx`, `backend/app/routers/costs.py`, `backend/app/services/cost_service.py`, `fuel_price_service.py`, `fuel_data_service.py` e i nuovi modelli. L’aggiornamento mantiene limite ricarica 10–20 A, telemetria e calibrazione automatica della batteria.
+
+Verifica: **33 test backend**, build Vite/PWA e import applicazione superati. Controlli UI desktop/mobile con API simulate per filtri, tabelle e salvataggio consumo. Verificata anche la lettura dei dataset MIMIT reali e l’abbinamento di un impianto per coordinate di esempio a Roma, senza chiamare la tua auto. Deploy remoto e aggiornamento al cambio reale di listino restano da verificare dopo installazione.
+
+Fonte dati e attribuzione (MIMIT, licenza IODL 2.0):
+https://www.mimit.gov.it/it/open-data/elenco-dataset/carburanti-prezzi-praticati-e-anagrafica-degli-impianti
+https://www.mimit.gov.it/images/stories/documenti/Metadati_prezzi_carburanti_20260128.pdf

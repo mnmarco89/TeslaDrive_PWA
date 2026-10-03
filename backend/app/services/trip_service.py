@@ -123,6 +123,9 @@ def record_sample(db, vin, data):
         parked = sample["shift"] == "P" or (sample["shift"] is None and sample["speed_kmh"] == 0)
         if moving and trip is None:
             settings = db.query(UserSettingsDB).first()
+            from .cost_service import current_settings, initial_rate, snapshot_trip_cost
+            settings = current_settings(db)
+            initial_rate(db)
             battery = battery_info(db, vin)
             trip = Trip(vin=vin, started_at=at, last_sample_at=at,
                         partial=previous_at is None or (at-previous_at).total_seconds() > MAX_GAP_SECONDS,
@@ -132,6 +135,7 @@ def record_sample(db, vin, data):
                         destination=sample["destination"] if isinstance(sample["destination"], str) else None)
             db.add(trip)
             db.flush()
+            snapshot_trip_cost(db, trip)
         if trip:
             # Unknown gear + zero speed requires a minute of confirmation; D at traffic lights stays active.
             if parked and trip.parked_since is None:

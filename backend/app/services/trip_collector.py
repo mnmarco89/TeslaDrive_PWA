@@ -83,6 +83,8 @@ def fetch_sample(db, vin):
         if location_unavailable:
             data["_location_unavailable"] = True
         _cache[vin] = (time.monotonic(), data)
+    from .fuel_price_service import schedule_fuel_refresh
+    schedule_fuel_refresh(db, vin, data)
     record_sample(db, vin, data)
     return data
 

@@ -147,3 +147,16 @@ body { background-color: var(--bg-color); color: var(--text-main); min-height: 1
 .trip-detail-metrics small { color: #94a3b8; }
 .trip-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 16px; }
 @media (max-width: 900px) { .trip-layout { grid-template-columns: 1fr; } .trip-map { height: 320px; } .trip-detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.cost-price-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.cost-price-grid > div { display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1px solid #334155; border-radius: 14px; }
+.cost-price-grid strong { font-size: 1.5rem; }
+.cost-price-grid small, .cost-coverage { color: #94a3b8; line-height: 1.5; }
+.cost-consumption-form { max-width: 500px; margin-top: 20px; }
+.cost-coverage { font-size: .9rem; margin-top: 18px; }
+.cost-table-scroll { max-width: 100%; overflow-x: auto; }
+.cost-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.cost-table th, .cost-table td { text-align: left; padding: 14px 10px; border-bottom: 1px solid #334155; vertical-align: top; }
+.cost-table th { color: #94a3b8; font-weight: 500; }
+.cost-table td small { display: block; color: #94a3b8; padding-top: 6px; }
+@media (max-width: 700px) { .cost-price-grid { grid-template-columns: 1fr; } .cost-table { min-width: 600px; } }

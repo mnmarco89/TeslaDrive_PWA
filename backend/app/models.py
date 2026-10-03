@@ -96,3 +96,38 @@ class BatteryObservation(Base):
 class AppMigration(Base):
     __tablename__ = "telemetry_migrations"
     name = Column(String, primary_key=True)
+
+
+class CostRate(Base):
+    __tablename__ = "telemetry_cost_rates"
+    id = Column(Integer, primary_key=True)
+    vin = Column(String, index=True)
+    effective_from = Column(DateTime, index=True, nullable=False)
+    recorded_at = Column(DateTime, nullable=False)
+    electricity = Column(Float, nullable=False)
+    diesel = Column(Float)
+    diesel_km_l = Column(Float, nullable=False)
+    source = Column(String, nullable=False)
+    station = Column(String)
+    dataset_date = Column(String)
+
+
+class TripCostSnapshot(Base):
+    __tablename__ = "telemetry_trip_cost_snapshots"
+    trip_id = Column(Integer, ForeignKey("telemetry_trips.id"), primary_key=True)
+    rate_id = Column(Integer, ForeignKey("telemetry_cost_rates.id"))
+    diesel = Column(Float)
+    diesel_km_l = Column(Float)
+
+
+class FuelPriceState(Base):
+    __tablename__ = "telemetry_fuel_price_state"
+    vin = Column(String, primary_key=True)
+    last_attempt_at = Column(DateTime)
+    last_success_at = Column(DateTime)
+    diesel = Column(Float)
+    error = Column(String)
+    station = Column(String)
+    city = Column(String)
+    dataset_date = Column(String)
+    reported_at = Column(String)
