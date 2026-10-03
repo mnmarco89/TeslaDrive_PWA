@@ -6,3 +6,4 @@ cryptography>=44.0.0
 requests>=2.31.0
 sqlalchemy>=2.0.0
 tesla-fleet-api>=0.1.0
+aiohttp>=3.11.0

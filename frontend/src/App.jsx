@@ -188,7 +188,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'telemetria' && <TelemetryPage dash={dash} />}
+            {activeTab === 'telemetria' && <TelemetryPage key={vin} vin={vin} dash={dash} />}
 
             {activeTab === 'costi' && (
               <CostsPage

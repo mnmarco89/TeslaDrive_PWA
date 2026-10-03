@@ -1,15 +1,27 @@
 import os
+from contextlib import asynccontextmanager
+from app.services.trip_collector import TripCollector
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
-from app.routers import auth, charging, settings, system, vehicles
+from app.routers import auth, charging, settings, system, vehicles, trips
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Shmersla / TeslaDrive API")
+@asynccontextmanager
+async def lifespan(app):
+    collector = TripCollector()
+    collector.start()
+    try:
+        yield
+    finally:
+        collector.stop()
+
+
+app = FastAPI(title="Shmersla / TeslaDrive API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,6 +36,7 @@ app.include_router(auth.router)
 app.include_router(vehicles.router)
 app.include_router(charging.router)
 app.include_router(settings.router)
+app.include_router(trips.router)
 
 # Il frontend compilato viene montato per ultimo per non intercettare /api e /auth.
 if os.path.exists("static"):

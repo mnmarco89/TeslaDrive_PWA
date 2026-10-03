@@ -16,7 +16,7 @@ router = APIRouter()
 def tesla_start_login():
     state = secrets.token_urlsafe(16)
     scopes = (
-        "openid offline_access user_data vehicle_device_data "
+        "openid offline_access user_data vehicle_device_data vehicle_location "
         "vehicle_cmds vehicle_charging_cmds"
     )
     auth_url = (

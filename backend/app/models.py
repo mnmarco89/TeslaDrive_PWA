@@ -22,3 +22,50 @@ class UserSettingsDB(Base):
     diesel = Column(String, default="2.19")
     diesel_km_l = Column(String, default="15.5")
     voltage_protection = Column(Integer, default=1)
+
+
+from sqlalchemy import Boolean, Float, ForeignKey, Text, UniqueConstraint
+
+
+class TrackingVehicle(Base):
+    __tablename__ = "tracking_vehicles"
+    vin = Column(String, primary_key=True)
+    enabled = Column(Boolean, default=True, nullable=False)
+    capacity_kwh = Column(Float, nullable=True)
+    last_sample_at = Column(DateTime, nullable=True)
+    last_status = Column(String, default="In attesa dei dati Tesla")
+
+
+class Trip(Base):
+    __tablename__ = "trips"
+    id = Column(Integer, primary_key=True)
+    vin = Column(String, index=True, nullable=False)
+    started_at = Column(DateTime, index=True, nullable=False)
+    ended_at = Column(DateTime)
+    last_sample_at = Column(DateTime, nullable=False)
+    status = Column(String, default="active", nullable=False)
+    partial = Column(Boolean, default=False, nullable=False)
+    start_odometer_km = Column(Float)
+    end_odometer_km = Column(Float)
+    start_battery = Column(Float)
+    end_battery = Column(Float)
+    capacity_kwh = Column(Float)
+    tariff = Column(Float)
+    destination = Column(Text)
+    distance_km = Column(Float)
+    distance_source = Column(String)
+    energy_kwh = Column(Float)
+    parked_since = Column(DateTime)
+
+
+class TripPoint(Base):
+    __tablename__ = "trip_points"
+    __table_args__ = (UniqueConstraint("trip_id", "recorded_at"),)
+    id = Column(Integer, primary_key=True)
+    trip_id = Column(Integer, ForeignKey("trips.id"), index=True, nullable=False)
+    recorded_at = Column(DateTime, nullable=False)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    speed_kmh = Column(Float)
+    battery = Column(Float)
+    odometer_km = Column(Float)

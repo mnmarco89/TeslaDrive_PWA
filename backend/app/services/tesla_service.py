@@ -15,6 +15,7 @@ def get_vehicles(access_token: str):
     response = requests.get(
         f"{TESLA_AUDIENCE}/api/1/vehicles",
         headers=authorization_headers(access_token),
+        timeout=20,
     )
     return response
 
