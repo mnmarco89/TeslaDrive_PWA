@@ -10,21 +10,18 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Aggiorna pip per stabilità
 RUN pip install --no-cache-dir --upgrade pip
 
-# Installa le dipendenze
-COPY backend/requirements.txt .
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia il codice del backend
-COPY backend/main.py ./main.py
+# Backend modulare
+COPY backend/ ./
 
-# Copia i file statici del frontend
+# Frontend compilato
 COPY --from=frontend-build /app/frontend/dist ./static
 
-# Copia l'intera cartella infra e la sotto-cartella static
-COPY infra ./infra
+# Tesla public key
 COPY infra/.well-known ./static/.well-known
 
 EXPOSE 10000

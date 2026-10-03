@@ -1,79 +1,96 @@
-# TeslaDrive – Deploy Render
+# Shmersla / TeslaDrive PWA — struttura modulare
 
-Versione PWA + FastAPI + PostgreSQL pensata per essere pubblicata su Render.
+Versione riorganizzata del progetto originale. Il comportamento funzionale corrente è stato mantenuto, ma frontend e backend sono stati separati in moduli per permettere di modificare una sezione senza dover riscrivere tutta l'app.
 
-## Cosa fa già
+## Struttura
 
-- OAuth Tesla reale
-- refresh token automatico
-- lettura veicoli Tesla
-- batteria, autonomia, odometro, velocità, marcia
-- posizione disponibile dai dati di guida quando Tesla la restituisce
-- impostazioni €/kWh, €/L diesel e km/L diesel
-- database PostgreSQL per token, impostazioni, telemetria e viaggi
-- PWA installabile da Safari su iPhone
-- HTTPS tramite Render
-- frontend React compilato e servito direttamente da FastAPI
+```text
+backend/
+  main.py
+  app/
+    config.py
+    database.py
+    dependencies.py
+    models.py
+    routers/
+      auth.py
+      charging.py
+      settings.py
+      system.py
+      vehicles.py
+    services/
+      tesla_service.py
+      voltage_governor.py
 
-## Cosa richiede Fleet Telemetry
+frontend/src/
+  main.jsx
+  App.jsx
+  api/
+    client.js
+  components/
+    Footer.jsx
+    Header.jsx
+    LoginHero.jsx
+    MetricCard.jsx
+    TabsNav.jsx
+    VehicleHero.jsx
+  pages/
+    ChargingPage.jsx
+    CostsPage.jsx
+    TelemetryPage.jsx
+  style.css
+```
 
-Destinazione navigazione, RouteLine e raccolta continua dei tragitti richiedono il server Fleet Telemetry ufficiale Tesla. Non vengono simulati da questa app.
+## Limite di ricarica
 
-Tesla descrive Fleet Telemetry come un server pubblico che riceve direttamente i dati dal veicolo. La configurazione richiede anche chiavi/virtual key e configurazione del veicolo.
+Il range applicativo è centralizzato lato backend in `backend/app/config.py`:
 
-## Deploy consigliato
+```python
+MIN_CHARGING_AMPS = 10
+MAX_CHARGING_AMPS = 20
+```
 
-1. Carica tutti i file di questa cartella nel repository GitHub già collegato a Render.
-2. Fai commit sul branch collegato a Render, normalmente `main`.
-3. In Render verifica il Web Service `tesladrive`.
-4. Crea un database PostgreSQL Free chiamato `tesladrive-db` se il tuo servizio non è stato creato tramite Blueprint. Collegalo tramite `DATABASE_URL`.
-5. Imposta le variabili:
+Il frontend mantiene lo slider 10–20 A e i preset 10/16/20 A.
+
+## Prossimo modulo: storico viaggi
+
+La pagina `frontend/src/pages/TelemetryPage.jsx` è ora isolata. Il prossimo sviluppo può aggiungere storico percorsi, mappa e consumi senza toccare la pagina di ricarica.
+
+Il backend mantiene per ora `/api/trips` come placeholder compatibile. Lo storico reale verrà implementato in un modulo dedicato.
+
+## Deploy Render
+
+Il deploy rimane basato sul `render.yaml` esistente. Il `backend/Dockerfile` è stato aggiornato per copiare l'intero backend modulare.
+
+Variabili principali:
 
 ```text
 TESLA_CLIENT_ID=...
 TESLA_CLIENT_SECRET=...
-APP_BASE_URL=https://tesladrive.onrender.com
-TESLA_REDIRECT_URI=https://tesladrive.onrender.com/auth/tesla/callback
+TESLA_REDIRECT_URI=https://<dominio>/auth/tesla/callback
 TESLA_AUDIENCE=https://fleet-api.prd.eu.vn.cloud.tesla.com
-SESSION_SECRET=<casuale e lungo>
-DATABASE_URL=<fornito da Render Postgres>
+TESLA_PRIVATE_KEY=<chiave privata VCP>
+DATABASE_URL=<fornito da Render/PostgreSQL>
 ```
 
-Se usi il `render.yaml` come Blueprint, Render può creare Web Service e Postgres insieme.
-
-## Tesla Developer
-
-Nella tua app Tesla devi registrare esattamente:
-
-- Allowed origin: `https://tesladrive.onrender.com`
-- Redirect URI: `https://tesladrive.onrender.com/auth/tesla/callback`
-
-Sostituisci `tesladrive.onrender.com` con il dominio effettivamente assegnato da Render.
-
-Gli scope richiesti da questa versione sono:
+Gli scope OAuth usati dal codice corrente sono:
 
 ```text
-openid offline_access vehicle_device_data vehicle_location
+openid offline_access user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds
 ```
 
-Non vengono richiesti comandi veicolo o comandi di ricarica.
+## Build locale frontend
 
-## Test
-
-Apri:
-
-```text
-https://tesladrive.onrender.com/health
+```bash
+cd frontend
+npm install
+npm run build
 ```
 
-Deve rispondere con `ok: true`.
+## Avvio backend locale
 
-Poi apri la home e premi `Collega Tesla`.
-
-## iPhone
-
-Safari -> apri l'URL -> Condividi -> Aggiungi alla schermata Home.
-
-## Nota sul piano Free
-
-Render offre Web Service e PostgreSQL Free per test/hobby, ma il Web Service può andare in sleep e il PostgreSQL Free scade dopo 30 giorni. Per lo storico permanente bisogna poi passare il database a un piano a pagamento.
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
