@@ -88,7 +88,7 @@ def get_current_token(db: Session = Depends(get_db)):
 async def send_signed_tesla_command(vin: str, token: str, endpoint: str, payload: dict):
     """
     Implementazione reale del Vehicle Command Protocol.
-    Utilizza tesla_fleet_api passando il file della chiave privata.
+    Utilizza tesla_fleet_api estraendo l'istanza corretta del veicolo.
     """
     private_key_pem = os.getenv("TESLA_PRIVATE_KEY")
     
@@ -101,7 +101,7 @@ async def send_signed_tesla_command(vin: str, token: str, endpoint: str, payload
         f.write(private_key_pem)
 
     async with aiohttp.ClientSession() as session:
-        # Inizializza il client API di Tesla corretto
+        # Inizializza il client API di Tesla
         api = TeslaFleetApi(
             access_token=token,
             session=session,
@@ -114,10 +114,12 @@ async def send_signed_tesla_command(vin: str, token: str, endpoint: str, payload
         print(f"Invio comando firmato VCP '{endpoint}' in corso...")
         
         try:
+            # 1. Crea l'oggetto specifico per il tuo VIN
+            vehicle = api.vehicles.create(vin)
+            
+            # 2. Lancia il comando direttamente sull'oggetto vehicle appena creato
             if endpoint == "set_charging_amps":
-                # CORREZIONE: Utilizzo di api.vehicles (al plurale)
-                response = await api.vehicles.set_charging_amps(
-                    vin, 
+                response = await vehicle.set_charging_amps(
                     charging_amps=payload.get("charging_amps")
                 )
                 return response
