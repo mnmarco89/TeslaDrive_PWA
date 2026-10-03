@@ -22,7 +22,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,ico,ttf}'],
         navigateFallbackDenylist: [/^\/auth/, /^\/api/, /^\/\.well-known/]
       }
     })

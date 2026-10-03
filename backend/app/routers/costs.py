@@ -45,3 +45,36 @@ def summary(vin: str, period: str = Query("all", pattern="^(today|week|month|all
         source="MIMIT Osservaprezzi Carburanti",
         status="Prezzo diesel rilevato automaticamente vicino all’auto" if state and state.diesel else "In attesa di posizione GPS e prezzo diesel")
     return result
+
+
+@router.get('/savings/{vin}')
+def savings(vin: str, db: Session = Depends(get_db)):
+    if not db.get(TrackingVehicle, vin):
+        raise HTTPException(404, 'Veicolo non disponibile')
+    from ..services.savings_service import get_savings
+    with capture_lock:
+        expire_trip(db, vin)
+        recover_missing_energy(db, vin)
+        return get_savings(db, vin)
+
+
+from pydantic import BaseModel, Field
+
+
+class BaselineConsumption(BaseModel):
+    electric_kwh_100km: float = Field(ge=1, le=100, allow_inf_nan=False)
+    diesel_km_l: float = Field(ge=1, le=100, allow_inf_nan=False)
+
+
+@router.patch('/savings/{vin}/baseline')
+def update_baseline(vin: str, payload: BaselineConsumption, db: Session = Depends(get_db)):
+    from ..models import SavingsBaseline
+    from ..services.savings_service import get_savings
+    with capture_lock:
+        baseline = db.get(SavingsBaseline, vin)
+        if not baseline:
+            raise HTTPException(404, 'Stima iniziale non disponibile per questo veicolo')
+        baseline.electric_kwh_100km = payload.electric_kwh_100km
+        baseline.diesel_km_l = payload.diesel_km_l
+        db.commit()
+        return get_savings(db, vin)

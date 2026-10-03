@@ -191,3 +191,14 @@ class TripAmbient(Base):
     trip_id = Column(Integer, ForeignKey('telemetry_trips.id'), primary_key=True)
     recorded_at = Column(DateTime, nullable=False)
     temperature_c = Column(Float, nullable=False)
+
+
+class SavingsBaseline(Base):
+    __tablename__ = 'telemetry_savings_baseline'
+    vin = Column(String, primary_key=True)
+    cutoff_at = Column(DateTime, nullable=False)
+    distance_km = Column(Float, nullable=False)
+    electricity_price = Column(Float, nullable=False)
+    diesel_price = Column(Float, nullable=False)
+    electric_kwh_100km = Column(Float, nullable=False)
+    diesel_km_l = Column(Float, nullable=False)
