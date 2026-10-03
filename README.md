@@ -236,3 +236,21 @@ Le richieste opzionali avvengono in background, con massimo tre elaborazioni con
 Su mobile il selettore e i pulsanti precedente/successivo sono accanto alla mappa e rimangono raggiungibili durante lo scorrimento del dettaglio. Lo storico è espandibile con scorrimento interno; durante il caricamento del viaggio successivo la mappa precedente resta presente e viene attenuata, evitando il collasso della pagina.
 
 Verifica di questa versione: 51 test backend superati e build PWA completata. Prove browser con due viaggi e rete simulata confermano posizione di scorrimento invariata durante la selezione ritardata, precedente/successivo, meteo/quote, spiegazioni energia e assenza di overflow a 320/390/768/1360 px. I servizi Open-Meteo non erano raggiungibili dall'ambiente di test: il collegamento esterno va confermato sul server installato.
+
+
+## Correzione recupero meteo e quote
+
+Le richieste Open-Meteo hanno timeout di connessione di 10 secondi e di lettura di 15 secondi. Errori di rete/timeout e HTTP 5xx ricevono un secondo tentativo automatico; HTTP 4xx e limiti 429 non vengono ritentati subito. L'interfaccia distingue timeout, errore di rete, rifiuto HTTP 403, limite HTTP 429, data/parametri non validi e dati mancanti, senza mostrare gli URL contenenti coordinate.
+
+Il pulsante Riprova meteo e quote permette di riavviare l'elaborazione dei soli dati mancanti dopo almeno 30 secondi dal fallimento, conservando quelli già salvati. Le vecchie risposte con errore generico vengono ritentate automaticamente senza attendere tutta la cache di 30 minuti. I viaggi, i prezzi e la configurazione DATABASE_URL restano invariati. Nessuna modifica manuale al database è richiesta.
+
+Verifiche: 56 test backend superati, build PWA completata, pulsante di retry e consultazione mobile verificati in browser con errori simulati. Sono state inoltre ottenute risposte reali valide da entrambi i servizi Open-Meteo per un punto di prova a Latina e l'ora del 3 ottobre 2026. La disponibilità dal proprio server resta dipendente dalla rete e dai limiti del fornitore. L'avviso Energia in attesa continua a dipendere dalla calibrazione batteria, non dal meteo.
+
+
+## Correzione caricamento cartografia e stabilità mobile
+
+La mappa Leaflet viene conservata quando cambia il viaggio: si aggiornano traccia e inquadratura senza ricreare il livello OpenStreetMap. Le immagini vengono richieste a spostamento concluso e non durante ogni fotogramma dello zoom, con un buffer ridotto. La cache HTTP del browser e le attribuzioni OpenStreetMap restano attive. Nessun proxy o download anticipato di aree.
+
+Se un caricamento contiene immagini fallite viene fatto un solo nuovo tentativo dopo 8 secondi per la sessione della mappa, senza cicli continui. Riprova mappa è disponibile anche manualmente. L'avviso viene rimosso dopo un caricamento riuscito. La disponibilità del fornitore esterno non è garantita; la schermata di rete ricevuta non contiene uno stato HTTP e non consente di attribuire il problema a CORS, blocchi o rete con certezza.
+
+Il dettaglio conserva l'altezza raggiunta per evitare salti di scorrimento mentre meteo e profilo altimetrico vengono sostituiti al cambio viaggio; si adatta nuovamente alla larghezza dello schermo. Verificati in browser con risposte simulate errore cartografia, riprova e recupero, riuso della stessa mappa, nessuna nuova richiesta immagini per due viaggi con identica geometria, retry del meteo e stabilità mobile.

@@ -114,3 +114,52 @@ class RecoveryTests(unittest.TestCase):
             other=self.trip()
             self.assertEqual(context.context(self.db,other)['status'],'no_gps')
             thread.assert_not_called()
+
+
+    def test_manual_retry_bypasses_long_cache_but_keeps_valid_weather(self):
+        t=self.trip()
+        self.db.add(TripPoint(trip_id=t.id,recorded_at=t.started_at,latitude=41,longitude=12))
+        self.db.add(TripContext(trip_id=t.id,updated_at=datetime.utcnow()-timedelta(minutes=2),payload=json.dumps({'status':'partial','weather':{'temperature_2m':22},'errors':{'elevation':'Timeout'}})))
+        self.db.commit()
+        with patch.object(context.threading,'Thread') as thread:
+            self.assertEqual(context.context(self.db,t)['status'],'partial')
+            thread.assert_not_called()
+            self.assertEqual(context.context(self.db,t,retry=True)['status'],'pending')
+            thread.return_value.start.assert_called_once()
+        context._pending.discard(t.id)
+
+
+
+class ProviderRetryTests(unittest.TestCase):
+    def test_timeout_retries_once_then_returns_data(self):
+        import requests
+        response=Mock();response.json.return_value={'elevation':[21]}
+        with patch.object(context.requests,'get',side_effect=[requests.Timeout(),response]) as get:
+            self.assertEqual(context.provider_json('https://api.open-meteo.com/v1/elevation',{}),{'elevation':[21]})
+        self.assertEqual(get.call_count,2)
+
+    def test_rate_limit_is_not_retried_immediately(self):
+        import requests
+        response=Mock(status_code=429)
+        response.raise_for_status.side_effect=requests.HTTPError(response=response)
+        with patch.object(context.requests,'get',return_value=response) as get:
+            with self.assertRaises(requests.HTTPError) as caught:
+                context.provider_json('https://api.open-meteo.com/v1/elevation',{})
+        self.assertEqual(get.call_count,1)
+        self.assertIn('HTTP 429',context.error_message(caught.exception))
+
+    def test_two_failures_remain_timeout_error(self):
+        import requests
+        with patch.object(context.requests,'get',side_effect=requests.Timeout()) as get:
+            with self.assertRaises(requests.Timeout) as caught:
+                context.provider_json('https://api.open-meteo.com/v1/elevation',{})
+        self.assertEqual(get.call_count,2)
+        self.assertIn('timeout',context.error_message(caught.exception))
+
+    def test_invalid_date_reason_is_visible_without_request_url(self):
+        import requests
+        response=Mock(status_code=400)
+        response.json.return_value={'reason':'start_date fuori intervallo'}
+        message=context.error_message(requests.HTTPError('URL with private coordinates',response=response))
+        self.assertIn('start_date fuori intervallo',message)
+        self.assertNotIn('private coordinates',message)

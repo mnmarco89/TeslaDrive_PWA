@@ -4,11 +4,12 @@ const fmt = v => v == null ? '—' : Number(v).toLocaleString('it-IT',{maximumFr
 const weatherLabel = c => c == null ? 'Meteo' : c===0 ? 'Sereno' : c<=3 ? 'Nuvoloso' : c<=48 ? 'Nebbia' : c<=67 ? 'Pioggia' : c<=77 ? 'Neve' : c<=82 ? 'Rovesci' : c<=86 ? 'Neve' : 'Temporali';
 export default function TripContext({ vin, tripId }) {
  const [data,setData]=useState(null),[error,setError]=useState('');
+ const [attempt,setAttempt]=useState(0);
  useEffect(() => {
   const controller=new AbortController(); let timer;
-  const load=async () => { try { const result=await api(`/api/trips/${vin}/${tripId}/context`,{signal:controller.signal}); if(controller.signal.aborted)return; setData(result); setError(''); if(result.status==='pending')timer=setTimeout(load,5000); else if(['partial','unavailable'].includes(result.status))timer=setTimeout(load,1800000); } catch(err){if(err.name!=='AbortError')setError('Meteo e quote temporaneamente non disponibili.');} };
+  const load=async () => { try { const result=await api(`/api/trips/${vin}/${tripId}/context${attempt ? "?retry=true" : ""}`,{signal:controller.signal}); if(controller.signal.aborted)return; setData(result); setError(''); if(result.status==='pending')timer=setTimeout(load,5000); else if(['partial','unavailable'].includes(result.status))timer=setTimeout(load,1800000); } catch(err){if(err.name!=='AbortError')setError('Meteo e quote temporaneamente non disponibili.');} };
   load(); return () => { controller.abort();clearTimeout(timer); };
- },[vin,tripId]);
+ },[vin,tripId,attempt]);
  const weather=data?.weather,elevation=data?.elevation;
  const profile=elevation?.profile || [];
  const min=elevation?.min_m ?? 0,max=elevation?.max_m ?? min+1;
@@ -21,6 +22,7 @@ export default function TripContext({ vin, tripId }) {
   {data?.message && data.status!=='pending' && <p className="trip-note">{data.message}</p>}
   {Object.entries(data?.errors || {}).map(([key,value])=><p className="trip-note" key={key}>{key==='weather'?'Meteo':'Quote'}: {value}</p>)}
   {error && <p className="trip-note">{error}</p>}
+  {(error || ['partial','unavailable'].includes(data?.status)) && <div className="context-retry"><button type="button" className="trip-button" onClick={() => {setData(current=>({...current,status:'pending'}));setAttempt(n=>n+1);}}>Riprova meteo e quote</button><small>{data?.retry_after_seconds > 0 && data.retry_after_seconds <= 30 ? 'Nuovo tentativo disponibile entro 30 secondi.' : 'Ritento solo i dati mancanti; quelli già recuperati restano salvati.'}</small></div>}
   {(weather || elevation) && <details className="disclosure"><summary>Precisione dei dati</summary><p className="trip-note">Il meteo è una ricostruzione del modello alla prima posizione GPS, non una misura lungo tutto il viaggio. La precipitazione è il valore orario del modello. Il profilo campiona fino a 100 punti del terreno: ponti, gallerie, tratti non registrati e piccoli dislivelli possono differire dalla strada reale. Le variazioni sotto 3 m sono filtrate.</p></details>}
  </section>;
 }

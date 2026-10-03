@@ -92,10 +92,10 @@ def detail(vin: str, trip_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{vin}/{trip_id}/context")
-def trip_context(vin: str, trip_id: int, db: Session = Depends(get_db)):
+def trip_context(vin: str, trip_id: int, retry: bool = False, db: Session = Depends(get_db)):
     tracked(db, vin)
     trip = db.query(Trip).filter_by(vin=vin, id=trip_id).first()
     if not trip:
         raise HTTPException(404, "Viaggio non trovato")
     from ..services.trip_context_service import context
-    return context(db, trip)
+    return context(db, trip, retry=retry)

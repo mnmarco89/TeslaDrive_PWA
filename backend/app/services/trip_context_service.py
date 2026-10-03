@@ -11,6 +11,45 @@ _pending = set()
 _lock = threading.Lock()
 
 
+def provider_json(url, params):
+    """Retry only transient transport/server failures; do not hammer rate limits."""
+    for attempt in range(2):
+        try:
+            response = requests.get(url, params=params, timeout=(10,15),
+                headers={"Accept":"application/json", "User-Agent":"Shmersla/2.4"})
+            response.raise_for_status()
+            return response.json()
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt:
+                raise
+        except requests.HTTPError as exc:
+            if attempt or exc.response is None or exc.response.status_code < 500:
+                raise
+
+
+def error_message(exc):
+    if isinstance(exc, requests.Timeout):
+        return "Open-Meteo non ha risposto entro il tempo previsto (timeout)."
+    if isinstance(exc, requests.ConnectionError):
+        return "Il server non riesce a collegarsi a Open-Meteo (errore di rete)."
+    if isinstance(exc, requests.HTTPError):
+        code = exc.response.status_code if exc.response is not None else None
+        labels = {403:"Open-Meteo rifiuta la richiesta dal server",429:"Limite di richieste Open-Meteo raggiunto"}
+        message = labels.get(code,"Open-Meteo ha restituito un errore") + f" (HTTP {code})."
+        if code == 400 and exc.response is not None:
+            try:
+                reason = exc.response.json().get('reason')
+                if isinstance(reason,str):
+                    message += " " + reason.replace('\n',' ')[:180]
+            except (ValueError,AttributeError):
+                pass
+        return message
+    if isinstance(exc, ValueError):
+        return str(exc)[:180] or "Dati del servizio non validi."
+    return "Dati temporaneamente non elaborabili."
+
+
+
 def route_samples(points):
     """Distance follows original segments; no fictitious ascent across a GPS gap."""
     valid = []
@@ -44,11 +83,15 @@ def weather_for(sample, now=None):
     at = sample['at']
     age = (now.date()-at.date()).days
     url = 'https://api.open-meteo.com/v1/forecast' if 0 <= age <= 5 else 'https://archive-api.open-meteo.com/v1/archive'
-    response = requests.get(url, params=dict(latitude=sample['latitude'], longitude=sample['longitude'],
+    payload = provider_json(url, dict(latitude=sample['latitude'], longitude=sample['longitude'],
         start_date=at.date().isoformat(), end_date=at.date().isoformat(), timezone='GMT',
-        hourly='temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,weather_code'), timeout=(5,15))
-    response.raise_for_status()
-    hourly = response.json().get('hourly') or {}
+        hourly='temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,weather_code'))
+    return parse_weather(sample, payload)
+
+
+def parse_weather(sample, payload):
+    at = sample['at']
+    hourly = payload.get('hourly') or {}
     times = hourly.get('time') or []
     target = at.replace(minute=0, second=0, microsecond=0).isoformat(timespec='minutes')
     if target not in times:
@@ -65,11 +108,10 @@ def weather_for(sample, now=None):
 
 
 def elevation_for(samples):
-    response = requests.get('https://api.open-meteo.com/v1/elevation', params={
+    payload = provider_json('https://api.open-meteo.com/v1/elevation', {
         'latitude': ','.join(str(p['latitude']) for p in samples),
-        'longitude': ','.join(str(p['longitude']) for p in samples)}, timeout=(5,15))
-    response.raise_for_status()
-    heights = [number(h) for h in response.json().get('elevation') or []]
+        'longitude': ','.join(str(p['longitude']) for p in samples)})
+    heights = [number(h) for h in payload.get('elevation') or []]
     if len(heights) != len(samples) or any(number(h) is None for h in heights):
         raise ValueError('Quote del percorso non disponibili')
     profile = [{**p, 'at':iso(p['at']), 'elevation_m':number(h)} for p,h in zip(samples,heights)]
@@ -101,8 +143,8 @@ def enrich(samples, previous=None):
             continue
         try:
             result[key] = function()
-        except Exception:
-            result['errors'][key] = 'Servizio temporaneamente non disponibile o dati mancanti. Riprovo dopo 30 minuti.'
+        except Exception as exc:
+            result['errors'][key] = error_message(exc)
     if result['errors']:
         result['status'] = 'partial' if result['weather'] or result['elevation'] else 'unavailable'
     return result
@@ -130,14 +172,16 @@ def _worker(trip_id, samples, previous):
             _pending.discard(trip_id)
 
 
-def context(db, trip):
+def context(db, trip, retry=False):
     if trip.status == 'active':
         return {'status':'active', 'message':'Meteo e quote saranno elaborati al termine del viaggio.'}
     state = db.get(TripContext,trip.id)
     previous = json.loads(state.payload) if state and state.payload else {}
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    if state and (previous.get('status') == 'ready' or state.updated_at and now-state.updated_at < timedelta(minutes=30)):
-        return previous
+    legacy_error = any('Servizio temporaneamente non disponibile o dati mancanti.' in text for text in previous.get('errors',{}).values())
+    cooldown = timedelta(seconds=30) if retry or legacy_error else timedelta(minutes=30)
+    if state and (previous.get('status') == 'ready' or state.updated_at and now-state.updated_at < cooldown):
+        return {**previous, 'retry_after_seconds':max(0,int((cooldown-(now-state.updated_at)).total_seconds())+1) if state.updated_at and previous.get('status') != 'ready' else 0}
     points = db.query(TripPoint).filter_by(trip_id=trip.id).order_by(TripPoint.recorded_at).all()
     samples = route_samples(points)
     if not samples:

@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-export default function TripMap({ points = [] }) {
+export default function TripMap({ points = [], tripId }) {
   const container = useRef(null);
   const instance = useRef(null);
   const layers = useRef(null);
-  const fitted = useRef(false);
+  const fitted = useRef(null);
+  const retryTiles = useRef(null);
   const bounds = useRef(null);
   const [tileError, setTileError] = useState(false);
   const hasGps = points.some(p => p.latitude != null && p.longitude != null);
@@ -16,10 +17,30 @@ export default function TripMap({ points = [] }) {
     const map = L.map(container.current, { scrollWheelZoom: false });
     instance.current = map;
     layers.current = L.layerGroup().addTo(map);
-    fitted.current = false;
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).on('tileerror', () => setTileError(true)).addTo(map);
+    fitted.current = null;
+    let failures = false, automaticRetry = false, retryTimer = null;
+    const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 1,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    });
+    retryTiles.current = () => {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+      failures = false;
+      setTileError(false);
+      tileLayer.redraw();
+    };
+    tileLayer.on('loading', () => { failures = false; });
+    tileLayer.on('tileerror', () => { failures = true; setTileError(true); });
+    tileLayer.on('load', () => {
+      setTileError(failures);
+      if (!failures) { clearTimeout(retryTimer); retryTimer = null; }
+      if (failures && !automaticRetry) {
+        automaticRetry = true;
+        retryTimer = setTimeout(() => retryTiles.current?.(), 8000);
+      }
+    });
+    tileLayer.addTo(map);
     let previousSize = null;
     const observer = new ResizeObserver(([entry]) => {
       const size = `${entry.contentRect.width}:${entry.contentRect.height}`;
@@ -28,7 +49,7 @@ export default function TripMap({ points = [] }) {
       previousSize = size;
     });
     observer.observe(container.current);
-    return () => { observer.disconnect(); map.remove(); instance.current = null; layers.current = null; };
+    return () => { observer.disconnect(); clearTimeout(retryTimer); retryTiles.current = null; map.remove(); instance.current = null; layers.current = null; };
   }, [hasGps]);
 
   useEffect(() => {
@@ -54,13 +75,13 @@ export default function TripMap({ points = [] }) {
     const first = valid[0], last = valid[valid.length - 1];
     L.circleMarker([first.latitude, first.longitude], { radius: 8, color: '#22c55e', fillOpacity: 1 }).bindTooltip('Primo punto rilevato').addTo(group);
     if (valid.length > 1) L.circleMarker([last.latitude, last.longitude], { radius: 8, color: '#f97316', fillOpacity: 1 }).bindTooltip('Ultimo punto rilevato').addTo(group);
-    if (!fitted.current) {
+    if (fitted.current !== tripId) {
       if (valid.length === 1) map.setView([first.latitude, first.longitude], 15);
       else map.fitBounds(L.latLngBounds(valid.map(pt => [pt.latitude, pt.longitude])), { padding: [30, 30], maxZoom: 16 });
-      fitted.current = true;
+      fitted.current = tripId;
     }
-  }, [points, hasGps]);
+  }, [points, hasGps, tripId]);
 
   if (!hasGps) return <div className="empty-state-box"><p>Nessun punto GPS disponibile.</p><span>Ricollega Tesla autorizzando l’accesso alla posizione. Distanza e batteria restano disponibili se ricevute.</span></div>;
-  return <><div className="map-tools"><span><i className="map-start" />Partenza <i className="map-end" />Arrivo</span><button type="button" className="trip-button" onClick={() => { if (instance.current && bounds.current) instance.current.fitBounds(bounds.current, { padding: [30, 30], maxZoom: 16 }); }}>Inquadra percorso</button></div><div ref={container} className="trip-map" aria-label="Mappa del percorso registrato" />{tileError && <p className="trip-note">Cartografia non raggiungibile. I punti del viaggio sono conservati.</p>}</>;
+  return <><div className="map-tools"><span><i className="map-start" />Partenza <i className="map-end" />Arrivo</span><button type="button" className="trip-button" onClick={() => { if (instance.current && bounds.current) instance.current.fitBounds(bounds.current, { padding: [30, 30], maxZoom: 16 }); }}>Inquadra percorso</button></div><div ref={container} className="trip-map" aria-label="Mappa del percorso registrato" />{tileError && <div className="trip-note" role="status"><p>Alcune immagini della mappa non sono state caricate. Il percorso GPS resta disponibile.</p><button type="button" className="trip-button" onClick={() => retryTiles.current?.()}>Riprova mappa</button></div>}</>;
 }

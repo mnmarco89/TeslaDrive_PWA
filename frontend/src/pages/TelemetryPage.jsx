@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import MetricCard from '../components/MetricCard';
 import TripContext from '../components/TripContext';
@@ -16,6 +16,7 @@ export default function TelemetryPage({ vin, dash }) {
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const detailPanel = useRef(null);
   const [tracking, setTracking] = useState(null);
   const [capacity, setCapacity] = useState('');
   const [enabled, setEnabled] = useState(true);
@@ -23,6 +24,25 @@ export default function TelemetryPage({ vin, dash }) {
   const [saving, setSaving] = useState(false);
   const [revision, setRevision] = useState(0);
   const [detailRevision, setDetailRevision] = useState(0);
+
+  useEffect(() => {
+    const panel = detailPanel.current;
+    if (!panel) return undefined;
+    let width = panel.clientWidth;
+    let height = panel.clientHeight;
+    // Keep the reading surface stable even while asynchronous context is empty.
+    const observer = new ResizeObserver(() => {
+      if (panel.clientWidth !== width) {
+        width = panel.clientWidth;
+        panel.style.minHeight = '';
+        height = panel.scrollHeight;
+      }
+      height = Math.max(height, panel.scrollHeight);
+      panel.style.minHeight = `${height}px`;
+    });
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -120,13 +140,13 @@ export default function TelemetryPage({ vin, dash }) {
             ))}
             <div className="trip-pagination"><button type="button" className="trip-button" disabled={!page} onClick={() => setPage(p => p - 1)}>Precedenti</button><span>{page + 1}</span><button type="button" className="trip-button" disabled={!history || (page + 1) * 50 >= history.total} onClick={() => setPage(p => p + 1)}>Successivi</button></div>
           </div></details>
-          <div className="trip-detail">
+          <div className="trip-detail" ref={detailPanel}>
             <div className="trip-browser"><button type="button" className="trip-button" aria-label="Viaggio precedente nella lista" disabled={selectedIndex <= 0} onClick={() => setSelectedId(history.items[selectedIndex-1].id)}>←</button><select aria-label="Seleziona viaggio" value={selectedId ?? ''} onChange={e => setSelectedId(Number(e.target.value))}>{(history?.items || []).map(t=><option key={t.id} value={t.id}>{date(t.started_at)} · {time(t.started_at)} · {fmt(t.distance_km)} km</option>)}</select><button type="button" className="trip-button" aria-label="Viaggio successivo nella lista" disabled={selectedIndex < 0 || selectedIndex >= (history?.items.length ?? 0)-1} onClick={() => setSelectedId(history.items[selectedIndex+1].id)}>→</button></div>
             <div className="trip-load-status" role="status">{detailLoading ? 'Aggiornamento percorso…' : ''}</div>
             {detail ? <>
               <h4 className="trip-detail-title">{date(detail.started_at)} · {time(detail.started_at)} — {detail.ended_at ? time(detail.ended_at) : 'in corso'}</h4>
               {detail.partial && <p className="trip-note">Percorso parziale: partenza già in marcia o interruzione della raccolta. La mappa unisce solo i punti ricevuti.</p>}
-              <div className={detailLoading && detail.id !== selectedId ? "trip-detail-loading" : ""}><TripMap key={detail.id} points={detail.points} /></div>
+              <div className={detailLoading && detail.id !== selectedId ? "trip-detail-loading" : ""}><TripMap tripId={detail.id} points={detail.points} /></div>
               <div className="trip-detail-metrics">
                 <span><strong>{fmt(detail.distance_km)} km</strong><small>{detail.distance_source === 'gps_estimate' ? 'Distanza GPS stimata' : 'Distanza da odometro'}</small></span>
                 <span><strong>{fmt(detail.duration_minutes, 0)} min</strong><small>Durata registrata</small></span>

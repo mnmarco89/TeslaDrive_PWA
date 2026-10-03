@@ -414,3 +414,6 @@ h4 { font-size:13px; margin:16px 0; }
 @media(max-width:900px) { .trip-history { order:-1; max-height:none; overflow:visible; }.trip-history-list { max-height:270px; }.trip-detail { order:0; } }
 @media(max-width:600px) { .context-metrics strong { font-size:14px; }.context-metrics span { padding:10px; }.trip-browser select { font-size:11px; }.trip-detail-title { font-size:12px; } }
 @media(max-width:900px) { .trip-browser { position:sticky; top:0; z-index:1001; background:#141d2b; padding:8px 0; } }
+
+.context-retry { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; }
+.context-retry small { color:var(--text-muted); font-size:10px; line-height:1.5; }
