@@ -1,4 +1,6 @@
+import ChargingHistory from '../components/ChargingHistory';
 export default function ChargingPage({
+  vin,
   charging,
   targetAmps,
   setTargetAmps,
@@ -7,6 +9,7 @@ export default function ChargingPage({
   onVoltageProtectionChange,
 }) {
   return (
+    <>
     <section className="glass-panel full-width">
       <div className="panel-header">
         <h3>Ricarica</h3>
@@ -81,5 +84,7 @@ export default function ChargingPage({
         </label>
       </div>
     </section>
+    <ChargingHistory key={vin} vin={vin}/>
+    </>
   );
 }

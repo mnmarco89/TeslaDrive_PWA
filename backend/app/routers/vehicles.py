@@ -34,7 +34,9 @@ def dashboard(vin: str, token: UserToken = Depends(get_current_token), db: Sessi
     charge_state = data.get("charge_state", {})
     climate_state = data.get("climate_state", {})
 
+    from ..services.location_service import location
     return {
+        "location": location(db, vin),
         "battery": charge_state.get("battery_level"),
         "range_km": (
             charge_state.get("battery_range", 0) * 1.60934
@@ -66,3 +68,9 @@ def dashboard(vin: str, token: UserToken = Depends(get_current_token), db: Sessi
         "charge_limit_soc": charge_state.get("charge_limit_soc"),
         "charge_port_door_open": charge_state.get("charge_port_door_open"),
     }
+
+
+@router.get('/vehicles/{vin}/location')
+def vehicle_location(vin: str, token: UserToken = Depends(get_current_token), db: Session = Depends(get_db)):
+    from ..services.location_service import location
+    return location(db, vin)

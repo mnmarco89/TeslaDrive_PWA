@@ -138,3 +138,56 @@ class TripContext(Base):
     trip_id = Column(Integer, ForeignKey("telemetry_trips.id"), primary_key=True)
     updated_at = Column(DateTime)
     payload = Column(Text)
+
+
+class ChargingSession(Base):
+    __tablename__ = 'telemetry_charging_sessions'
+    id = Column(Integer, primary_key=True)
+    vin = Column(String, index=True, nullable=False)
+    started_at = Column(DateTime, nullable=False)
+    last_sample_at = Column(DateTime, nullable=False)
+    ended_at = Column(DateTime)
+    status = Column(String, nullable=False, default='active')
+    partial = Column(Boolean, nullable=False, default=False)
+    start_soc = Column(Float)
+    end_soc = Column(Float)
+    last_counter_kwh = Column(Float, nullable=False)
+    energy_kwh = Column(Float, nullable=False, default=0)
+
+
+class ChargingIncrement(Base):
+    __tablename__ = 'telemetry_charging_increments'
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey('telemetry_charging_sessions.id'), index=True, nullable=False)
+    day = Column(String, index=True, nullable=False)
+    energy_kwh = Column(Float, nullable=False)
+    seconds = Column(Float, nullable=False)
+    midnight_estimate = Column(Boolean, nullable=False, default=False)
+
+
+class VehicleLocation(Base):
+    __tablename__ = 'telemetry_vehicle_location'
+    vin = Column(String, primary_key=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    recorded_at = Column(DateTime, nullable=False)
+
+
+class WeatherProviderState(Base):
+    __tablename__ = 'telemetry_weather_provider_state'
+    name = Column(String, primary_key=True)
+    blocked_until = Column(DateTime)
+
+
+class WeatherProviderCache(Base):
+    __tablename__ = 'telemetry_weather_provider_cache'
+    key = Column(String, primary_key=True)
+    expires_at = Column(DateTime, nullable=False)
+    payload = Column(Text, nullable=False)
+
+
+class TripAmbient(Base):
+    __tablename__ = 'telemetry_trip_ambient'
+    trip_id = Column(Integer, ForeignKey('telemetry_trips.id'), primary_key=True)
+    recorded_at = Column(DateTime, nullable=False)
+    temperature_c = Column(Float, nullable=False)

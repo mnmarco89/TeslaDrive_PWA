@@ -1,0 +1,31 @@
+import { useEffect, useState } from 'react';
+import { api } from '../api/client';
+const fmt=(n,d=1)=>n==null?'—':Number(n).toLocaleString('it-IT',{maximumFractionDigits:d});
+const date=day=>new Date(`${day}T12:00:00`).toLocaleDateString('it-IT',{day:'numeric',month:'short'});
+export default function ChargingHistory({vin}) {
+ const [period,setPeriod]=useState(30),[data,setData]=useState(null),[error,setError]=useState(''),[selected,setSelected]=useState(null),[attempt,setAttempt]=useState(0);
+ useEffect(()=>{
+  let cancelled=false;
+  setData(null);setSelected(null);setError('');
+  const load=async()=>{try{const result=await api(`/api/charging/${vin}/history?days=${period}`);if(!cancelled){setData(result);setError('');}}catch(e){if(!cancelled)setError(e.message);}};
+  load();const timer=setInterval(load,60000);return()=>{cancelled=true;clearInterval(timer);};
+ },[vin,period,attempt]);
+ const days=data?.days||[],max=Math.max(1,...days.map(d=>d.energy_kwh)),chosen=days.find(d=>d.day===selected)||days.at(-1);
+ const points=data?.capacity_points||[],low=Math.max(0,Math.floor(Math.min(...points.map(p=>p.capacity_kwh),data?.capacity_recent_kwh??(points.length?points[0].capacity_kwh:0))*.95)),high=Math.max(low+1,Math.ceil(Math.max(...points.map(p=>p.capacity_kwh),data?.capacity_recent_kwh??0)*1.05));
+ const first=points.length?Date.parse(points[0].at):0,last=points.length?Date.parse(points.at(-1).at):1;
+ const x=p=>40+(Date.parse(p.at)-first)/Math.max(1,last-first)*620;
+ const y=p=>145-(p.capacity_kwh-low)/(high-low)*115;
+ return <section className="glass-panel full-width charging-history">
+  <div className="panel-header"><div><span className="label-top">ENERGIA NEL TEMPO</span><h3>Le tue ricariche</h3></div><div className="history-periods" aria-label="Periodo storico ricariche">{[7,30,90,365].map(n=><button key={n} aria-pressed={period===n} className={period===n?'selected':''} onClick={()=>setPeriod(n)}>{n===365?'1 anno':`${n} g`}</button>)}</div></div>
+  {error?<div role="alert" className="trip-error">{error} <button className="trip-button" onClick={()=>setAttempt(a=>a+1)}>Riprova storico</button></div>:!data?<p role="status" className="trip-note">Caricamento storico…</p>:<>
+   <div className="charge-history-stats"><div><span>Energia registrata</span><strong>{fmt(data.total_energy_kwh)} <small>kWh</small></strong></div><div><span>Sessioni osservate</span><strong>{data.session_count}</strong></div><div><span>Capacità automatica stimata</span><strong>{fmt(data.battery?.automatic_capacity_kwh)} <small>kWh</small></strong></div></div>
+   <div className="daily-chart-heading"><span>kWh aggiunti ogni giorno</span><small>Ora italiana · tocca una barra</small></div>
+   <div className="daily-chart-scroll"><div className="daily-charge-bars" style={{minWidth:`${Math.max(280,days.length*18)}px`}} role="group" aria-label="Energia di ricarica giornaliera">{days.map((d,i)=><button key={d.day} className={`charge-day ${chosen?.day===d.day?'chosen':''}`} aria-pressed={chosen?.day===d.day} aria-label={`${date(d.day)}: ${fmt(d.energy_kwh)} kWh, ${d.sessions} sessioni${d.partial?', dati parziali':''}`} onClick={()=>setSelected(d.day)}><span className={`charge-bar ${d.partial?'partial-bar':''}`} style={{height:`${Math.max(2,d.energy_kwh/max*130)}px`}}/><small>{days.length<=7||i%Math.ceil(days.length/10)===0?date(d.day):' '}</small></button>)}</div></div>
+   {chosen&&<div className="selected-charge-day" aria-live="polite"><strong>{date(chosen.day)}</strong><span>{fmt(chosen.energy_kwh)} kWh · {chosen.sessions} sessioni osservate{chosen.partial?' · dati parziali':''}{chosen.midnight_estimate?' · ripartizione a mezzanotte stimata':''}</span></div>}
+   {!data.recording_since?<div className="empty-state-box"><p>Pronto per la prossima ricarica</p><span>Lo storico inizierà con i dati ricevuti da Tesla. Le ricariche precedenti non vengono ricostruite.</span></div>:<p className="trip-note">Registrazione dal {new Date(data.recording_since).toLocaleDateString('it-IT')}. I totali includono solo gli incrementi osservati; eventuali ricariche durante assenze di dati possono mancare.</p>}
+   <div className="capacity-trend-heading"><div><span className="label-top">BATTERIA</span><h3>Andamento della capacità</h3></div><strong>{data.capacity_variation_percent==null?'In osservazione':`${data.capacity_variation_percent>0?'+':''}${fmt(data.capacity_variation_percent)}%`}<small> rispetto al riferimento iniziale</small></strong></div>
+   {points.length?<svg className="capacity-chart" viewBox="0 0 700 180" role="img" aria-label="Capacità stimata dalle ricariche nel periodo selezionato"><title>Capacità stimata in kWh</title>{[0,.5,1].map(t=><g key={t}><line x1="40" x2="675" y1={145-t*115} y2={145-t*115}/><text x="3" y={150-t*115}>{fmt(low+t*(high-low),0)}</text></g>)}<polyline points={points.map(p=>`${x(p)},${y(p)}`).join(' ')} fill="none"/>{points.map((p,i)=><circle key={i} cx={x(p)} cy={y(p)} r="4"><title>{new Date(p.at).toLocaleDateString('it-IT')}: {fmt(p.capacity_kwh)} kWh · +{fmt(p.soc_delta,0)}% batteria</title></circle>)}<text x="40" y="173">{new Date(points[0].at).toLocaleDateString('it-IT')}</text><text x="675" y="173" textAnchor="end">{points.length>1?new Date(points.at(-1).at).toLocaleDateString('it-IT'):''}</text></svg>:<div className="empty-state-box"><p>Nessuna stima nel periodo</p><span>Serve una ricarica osservata di almeno 20 punti percentuali fino alla conclusione.</span></div>}
+   <details className="disclosure"><summary>Come leggere la capacità e l’usura</summary><div className="disclosure-body"><p className="trip-note">La capacità è stimata dai kWh aggiunti e dall’aumento della percentuale batteria. Temperatura, arrotondamento del SOC e condizioni di ricarica possono farla oscillare: questo grafico mostra una tendenza, non un test certificato di salute della batteria.</p><p className="trip-note">Il riferimento è la mediana delle prime 3 letture valide ({fmt(data.capacity_baseline_kwh)} kWh). La variazione compare dopo altre 3 letture ed è confrontata con la mediana delle ultime 10 successive al riferimento. Non indica la perdita rispetto alla batteria da nuova. Letture valide totali: {data.capacity_observations}.</p></div></details>
+  </>}
+ </section>;
+}

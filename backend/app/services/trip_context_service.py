@@ -1,17 +1,21 @@
 """Persist optional model weather and terrain estimates without blocking Tesla polling."""
 import json
+import hashlib
+import os
+from email.utils import parsedate_to_datetime
 import threading
 from datetime import datetime, timedelta, timezone
 import requests
 from ..database import SessionLocal
-from ..models import Trip, TripPoint, TripContext
+from ..models import Trip, TripPoint, TripContext, WeatherProviderState, WeatherProviderCache, TripAmbient
 from .trip_service import haversine, number, iso
 
 _pending = set()
 _lock = threading.Lock()
+_provider_lock = threading.RLock()
 
 
-def provider_json(url, params):
+def _request_json(url, params):
     """Retry only transient transport/server failures; do not hammer rate limits."""
     for attempt in range(2):
         try:
@@ -25,6 +29,71 @@ def provider_json(url, params):
         except requests.HTTPError as exc:
             if attempt or exc.response is None or exc.response.status_code < 500:
                 raise
+
+
+
+class ProviderLimited(ValueError):
+    pass
+
+
+def quota_name():
+    key = os.getenv('OPEN_METEO_API_KEY', '').strip()
+    return 'customer_'+hashlib.sha256(key.encode()).hexdigest()[:16] if key else 'free'
+
+
+def quota_wait(db):
+    state = db.get(WeatherProviderState, quota_name())
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    return max(0, int((state.blocked_until-now).total_seconds())+1) if state and state.blocked_until else 0
+
+
+def _cached_provider_json(url, params, db=None):
+    params = dict(params)
+    key = os.getenv('OPEN_METEO_API_KEY', '').strip()
+    if key:
+        url = url.replace('https://', 'https://customer-', 1)
+        params['apikey'] = key
+    cache_key = hashlib.sha256(json.dumps([url,params],sort_keys=True).encode()).hexdigest()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if db is not None:
+        cached = db.get(WeatherProviderCache, cache_key)
+        if cached and cached.expires_at > now:
+            return json.loads(cached.payload)
+        if quota_wait(db):
+            raise ProviderLimited('Open-Meteo in pausa dopo HTTP 429. Nuovo tentativo dopo il limite indicato.')
+    try:
+        payload = _request_json(url,params)
+    except requests.HTTPError as exc:
+        if db is not None and exc.response is not None and exc.response.status_code == 429:
+            delay = 1800
+            header = exc.response.headers.get('Retry-After')
+            if isinstance(header,str):
+                try:
+                    delay = max(60, int(header))
+                except ValueError:
+                    try:
+                        delay = max(60,int((parsedate_to_datetime(header).astimezone(timezone.utc).replace(tzinfo=None)-now).total_seconds()))
+                    except (ValueError,TypeError,OverflowError):
+                        pass
+            state = db.get(WeatherProviderState, quota_name()) or WeatherProviderState(name=quota_name())
+            state.blocked_until = now+timedelta(seconds=delay)
+            db.add(state)
+            db.commit()
+        raise
+    if db is not None:
+        cached = db.get(WeatherProviderCache,cache_key) or WeatherProviderCache(key=cache_key)
+        cached.payload = json.dumps(payload,allow_nan=False)
+        cached.expires_at = now+timedelta(hours=6) if '/forecast' in url else now+timedelta(days=30)
+        db.add(cached)
+        db.query(WeatherProviderCache).filter(WeatherProviderCache.expires_at < now).delete(synchronize_session=False)
+        db.commit()
+    return payload
+
+
+def provider_json(url, params, db=None):
+    # Serialize optional provider calls, including cache misses across trips.
+    with _provider_lock:
+        return _cached_provider_json(url, params, db=db)
 
 
 def error_message(exc):
@@ -78,14 +147,14 @@ def route_samples(points):
     return [valid[i] for i in sorted(indexes)]
 
 
-def weather_for(sample, now=None):
+def weather_for(sample, now=None, db=None):
     now = now or datetime.now(timezone.utc).replace(tzinfo=None)
     at = sample['at']
     age = (now.date()-at.date()).days
     url = 'https://api.open-meteo.com/v1/forecast' if 0 <= age <= 5 else 'https://archive-api.open-meteo.com/v1/archive'
-    payload = provider_json(url, dict(latitude=sample['latitude'], longitude=sample['longitude'],
+    payload = provider_json(url, dict(latitude=round(sample['latitude'],2), longitude=round(sample['longitude'],2),
         start_date=at.date().isoformat(), end_date=at.date().isoformat(), timezone='GMT',
-        hourly='temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,weather_code'))
+        hourly='temperature_2m,precipitation,wind_speed_10m,wind_direction_10m,weather_code'), db=db)
     return parse_weather(sample, payload)
 
 
@@ -107,10 +176,10 @@ def parse_weather(sample, payload):
             'source':'Open-Meteo', 'kind':'model_at_departure'}
 
 
-def elevation_for(samples):
+def elevation_for(samples, db=None):
     payload = provider_json('https://api.open-meteo.com/v1/elevation', {
         'latitude': ','.join(str(p['latitude']) for p in samples),
-        'longitude': ','.join(str(p['longitude']) for p in samples)})
+        'longitude': ','.join(str(p['longitude']) for p in samples)}, db=db)
     heights = [number(h) for h in payload.get('elevation') or []]
     if len(heights) != len(samples) or any(number(h) is None for h in heights):
         raise ValueError('Quote del percorso non disponibili')
@@ -134,34 +203,37 @@ def elevation_for(samples):
         partial=len({p['segment'] for p in profile}) > 1, resolution_m=90)
 
 
-def enrich(samples, previous=None):
+def enrich(samples, previous=None, db=None, ambient=None):
     previous = previous or {}
     result = {'status':'ready', 'weather':None, 'elevation':None, 'errors':{}}
-    for key, function in [('weather',lambda:weather_for(samples[0])),('elevation',lambda:elevation_for(samples))]:
-        if previous.get(key):
+    for key, function in [('weather',lambda:weather_for(samples[0], db=db)),('elevation',lambda:elevation_for(samples, db=db))]:
+        if previous.get(key) and previous[key].get('source') != 'Tesla':
             result[key] = previous[key]
             continue
         try:
             result[key] = function()
         except Exception as exc:
             result['errors'][key] = error_message(exc)
+    if not result['weather'] and ambient:
+        result['weather'] = ambient
     if result['errors']:
         result['status'] = 'partial' if result['weather'] or result['elevation'] else 'unavailable'
     return result
 
 
+def ambient_weather(db, trip_id):
+    reading = db.get(TripAmbient, trip_id)
+    return dict(temperature_2m=reading.temperature_c, at=iso(reading.recorded_at), source='Tesla',
+        kind='vehicle_at_departure', wind_speed_10m=None, precipitation=None, weather_code=None,
+        wind_direction_10m=None) if reading else None
+
+
 def _worker(trip_id, samples, previous):
     try:
-        result = enrich(samples, previous)
-        # Keep successful historical data if only the other service needs a retry.
-        for key in ['weather','elevation']:
-            if previous.get(key):
-                result[key] = previous[key]
-                result['errors'].pop(key,None)
-        result['status'] = 'ready' if not result['errors'] else 'partial' if result['weather'] or result['elevation'] else 'unavailable'
         with SessionLocal() as db:
             if not db.get(Trip,trip_id):
                 return
+            result = enrich(samples, previous, db=db, ambient=ambient_weather(db,trip_id))
             state = db.get(TripContext,trip_id) or TripContext(trip_id=trip_id)
             state.payload = json.dumps(result,allow_nan=False)
             state.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -178,6 +250,13 @@ def context(db, trip, retry=False):
     state = db.get(TripContext,trip.id)
     previous = json.loads(state.payload) if state and state.payload else {}
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    wait = quota_wait(db)
+    if wait and previous.get('status') != 'ready':
+        weather = previous.get('weather') or ambient_weather(db,trip.id)
+        return {**previous, 'weather':weather, 'status':'partial' if weather or previous.get('elevation') else 'unavailable',
+            'errors': {**previous.get('errors',{}), **({'weather':'Open-Meteo in pausa dopo HTTP 429.'} if not weather or weather.get('source') == 'Tesla' else {}),
+                **({'elevation':'Open-Meteo in pausa dopo HTTP 429.'} if not previous.get('elevation') else {})},
+            'rate_limited':True, 'retry_after_seconds':wait}
     legacy_error = any('Servizio temporaneamente non disponibile o dati mancanti.' in text for text in previous.get('errors',{}).values())
     cooldown = timedelta(seconds=30) if retry or legacy_error else timedelta(minutes=30)
     if state and (previous.get('status') == 'ready' or state.updated_at and now-state.updated_at < cooldown):

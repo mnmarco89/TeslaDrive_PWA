@@ -108,6 +108,10 @@ def record_sample(db, vin, data):
             return
         from .battery_service import record_charging_sample, battery_info
         record_charging_sample(db, vin, data)
+        from .charging_history_service import record_history
+        from .location_service import record_location
+        record_history(db, vin, data)
+        record_location(db, vin, data)
         sample = sample_from_data(data)
         if not sample:
             vehicle.last_status = "Dati assenti o non recenti"
@@ -116,6 +120,7 @@ def record_sample(db, vin, data):
         at = sample["at"]
         previous_at = vehicle.last_sample_at
         if previous_at and at <= previous_at:
+            db.commit()
             return
         expire_trip(db, vin, at)
         trip = db.query(Trip).filter_by(vin=vin, status="active").first()
@@ -136,6 +141,13 @@ def record_sample(db, vin, data):
             db.add(trip)
             db.flush()
             snapshot_trip_cost(db, trip)
+            from ..models import TripAmbient
+            climate = data.get('climate_state') or {}
+            from .charging_history_service import sample_time
+            ambient_at = sample_time(climate.get('timestamp'))
+            temperature = number(climate.get('outside_temp'))
+            if temperature is not None and -60 <= temperature <= 70 and ambient_at and abs((ambient_at-at).total_seconds()) <= 180:
+                db.add(TripAmbient(trip_id=trip.id, recorded_at=ambient_at, temperature_c=temperature))
         if trip:
             # Unknown gear + zero speed requires a minute of confirmation; D at traffic lights stays active.
             if parked and trip.parked_since is None:

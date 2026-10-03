@@ -1,6 +1,6 @@
-export default function VehicleHero({ vehicles, vin, dash, onVehicleChange }) {
+export default function VehicleHero({ vehicles, vin, dash, onVehicleChange, compact = false }) {
   return (
-    <section className="car-hero-card">
+    <section className={`car-hero-card ${compact ? "compact-vehicle-hero" : ""}`}>
       <div className="car-info">
         <span className="label-top">VEICOLO ATTIVO</span>
         <h2>{vehicles.find(vehicle => vehicle.vin === vin)?.display_name || 'Model 3 / Y'}</h2>

@@ -186,6 +186,7 @@ export default function App() {
       ) : (
         <main className="dashboard-grid">
           <VehicleHero
+            compact={activeTab === 'home'}
             vehicles={vehicles}
             vin={vin}
             dash={dash}
@@ -199,6 +200,7 @@ export default function App() {
 
             {activeTab === 'ricarica' && (
               <ChargingPage
+                vin={vin}
                 charging={charging}
                 targetAmps={targetAmps}
                 setTargetAmps={setTargetAmps}

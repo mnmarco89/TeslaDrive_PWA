@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..config import MAX_CHARGING_AMPS, MIN_CHARGING_AMPS
@@ -79,3 +79,12 @@ async def set_charging_amps(
         }
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get('/charging/{vin}/history')
+def charging_history(vin: str, days: int = Query(30, ge=7, le=365),
+                     token: UserToken = Depends(get_current_token), db: Session = Depends(get_db)):
+    from ..services.trip_service import capture_lock
+    from ..services.charging_history_service import history
+    with capture_lock:
+        return history(db, vin, days)

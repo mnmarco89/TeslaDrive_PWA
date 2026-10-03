@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-export default function TripMap({ points = [], tripId }) {
+export default function TripMap({ points = [], tripId, positionMode = false }) {
   const container = useRef(null);
   const instance = useRef(null);
   const layers = useRef(null);
@@ -73,15 +73,15 @@ export default function TripMap({ points = [], tripId }) {
     segments.forEach(path => L.polyline(path, { color: '#60a5fa', weight: 5 }).addTo(group));
     bounds.current = L.latLngBounds(valid.map(pt => [pt.latitude, pt.longitude]));
     const first = valid[0], last = valid[valid.length - 1];
-    L.circleMarker([first.latitude, first.longitude], { radius: 8, color: '#22c55e', fillOpacity: 1 }).bindTooltip('Primo punto rilevato').addTo(group);
+    L.circleMarker([first.latitude, first.longitude], { radius: 8, color: '#22c55e', fillOpacity: 1 }).bindTooltip(positionMode ? 'Posizione della tua Tesla' : 'Primo punto rilevato').addTo(group);
     if (valid.length > 1) L.circleMarker([last.latitude, last.longitude], { radius: 8, color: '#f97316', fillOpacity: 1 }).bindTooltip('Ultimo punto rilevato').addTo(group);
     if (fitted.current !== tripId) {
       if (valid.length === 1) map.setView([first.latitude, first.longitude], 15);
       else map.fitBounds(L.latLngBounds(valid.map(pt => [pt.latitude, pt.longitude])), { padding: [30, 30], maxZoom: 16 });
       fitted.current = tripId;
     }
-  }, [points, hasGps, tripId]);
+  }, [points, hasGps, tripId, positionMode]);
 
   if (!hasGps) return <div className="empty-state-box"><p>Nessun punto GPS disponibile.</p><span>Ricollega Tesla autorizzando l’accesso alla posizione. Distanza e batteria restano disponibili se ricevute.</span></div>;
-  return <><div className="map-tools"><span><i className="map-start" />Partenza <i className="map-end" />Arrivo</span><button type="button" className="trip-button" onClick={() => { if (instance.current && bounds.current) instance.current.fitBounds(bounds.current, { padding: [30, 30], maxZoom: 16 }); }}>Inquadra percorso</button></div><div ref={container} className="trip-map" aria-label="Mappa del percorso registrato" />{tileError && <div className="trip-note" role="status"><p>Alcune immagini della mappa non sono state caricate. Il percorso GPS resta disponibile.</p><button type="button" className="trip-button" onClick={() => retryTiles.current?.()}>Riprova mappa</button></div>}</>;
+  return <><div className="map-tools"><span>{positionMode ? <><i className="map-start" />La tua Tesla</> : <><i className="map-start" />Partenza <i className="map-end" />Arrivo</>}</span><button type="button" className="trip-button" onClick={() => { if (instance.current && bounds.current) instance.current.fitBounds(bounds.current, { padding: [30, 30], maxZoom: 16 }); }}>{positionMode ? 'Centra auto' : 'Inquadra percorso'}</button></div><div ref={container} className="trip-map" aria-label={positionMode ? "Mappa posizione auto" : "Mappa del percorso registrato"} />{tileError && <div className="trip-note" role="status"><p>Alcune immagini della mappa non sono state caricate. Il percorso GPS resta disponibile.</p><button type="button" className="trip-button" onClick={() => retryTiles.current?.()}>Riprova mappa</button></div>}</>;
 }
