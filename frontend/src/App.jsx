@@ -9,6 +9,7 @@ import VehicleHero from './components/VehicleHero';
 import HomePage from './pages/HomePage';
 import ChargingPage from './pages/ChargingPage';
 import CostsPage from './pages/CostsPage';
+import SavingsPage from './pages/SavingsPage';
 import TelemetryPage from './pages/TelemetryPage';
 
 export default function App() {
@@ -211,6 +212,8 @@ export default function App() {
             )}
 
             {activeTab === 'telemetria' && <TelemetryPage key={vin} vin={vin} dash={dash} />}
+
+            {activeTab === 'risparmio' && <SavingsPage key={vin} vin={vin} onNavigate={setActiveTab}/>}
 
             {activeTab === 'costi' && (
               <CostsPage

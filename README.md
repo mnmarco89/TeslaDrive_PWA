@@ -284,3 +284,11 @@ La mappa della Home è alta 165 px su desktop e 145 px su telefono, mentre quell
 L'intestazione della Home mostra di nuovo VEICOLO ATTIVO, il modello e il selettore veicolo. Il modello proviene da vehicle_config.car_type di Tesla; vehicle_config viene incluso nelle richieste già esistenti, anche nel ramo senza GPS. Se Tesla non lo comunica viene mostrato Tesla, senza dedurlo o inventarlo dal telaio. L'eventuale nome personale viene mostrato separatamente. Stile Home rifinito con superfici scure più neutre, accenti blu, bordi discreti e pulsanti arrotondati. Nessuna modifica allo schema database.
 
 Verificati build PWA, 69 test backend e prove browser: modello con nome veicolo assente, intestazione visibile, apertura/chiusura delle sezioni anche da tastiera, altezza mappa e assenza di overflow a 320/390/768/1360 px, conferme comandi, storico ricariche e blocco 429.
+
+## Obiettivo risparmio 22.000 €
+
+La nuova tab Ebreo Status visualizza una barra da 0 a 22.000 euro. Usa direttamente saving della stessa API autenticata utilizzata da Costi con periodo all (Tutti), per il veicolo selezionato, con aggiornamento ogni 15 secondi mentre la tab è aperta. Non esiste un accumulatore separato che possa duplicare i risparmi o divergere dai costi.
+
+Il confronto sottrae il costo elettrico stimato dal diesel equivalente solo sui percorsi con entrambi i dati e le relative tariffe storiche. Un risparmio assente resta in attesa, non viene trattato come un costo elettrico nullo. I percorsi esclusi entreranno nel calcolo quando i dati mancanti saranno disponibili, secondo il recupero già previsto in Costi. Sono mostrati totale, percentuale, importo restante e traguardi 5.500/11.000/16.500 euro. Una differenza negativa viene conservata nel totale, con barra a zero; sopra 22.000 euro la barra resta al 100% e il totale effettivo continua a essere mostrato. La stima può diminuire al variare dei nuovi percorsi. Non comprende acquisto, manutenzione, assicurazione né perdite di ricarica.
+
+Navigazione adattata a cinque tab anche su telefono. Build PWA e prove browser con dati simulati: valore mancante, zero, 50%, negativo, superamento obiettivo, collegamento a Costi e assenza di overflow a 320/390/768/1360 px. Nessuna modifica allo schema database o alle tariffe.
